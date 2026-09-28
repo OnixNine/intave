@@ -33,9 +33,15 @@ import de.jpx3.intave.module.dispatch.AttackDispatcher;
 import de.jpx3.intave.module.feedback.EmptyFeedbackCallback;
 import de.jpx3.intave.module.linker.packet.ForwardingPacketAdapter;
 import de.jpx3.intave.module.tracker.entity.Entity;
+import de.jpx3.intave.packet.Relative;
+import de.jpx3.intave.packet.converter.PosMoveRotConverter;
 import de.jpx3.intave.packet.converter.PositionAndRotationConverter;
+import de.jpx3.intave.share.Motion;
 import de.jpx3.intave.share.Position;
 import de.jpx3.intave.share.PositionAndRotation;
+import de.jpx3.intave.share.PositionMoveRotation;
+import de.jpx3.intave.share.Rotation;
+import de.jpx3.intave.share.Teleport;
 import de.jpx3.intave.test.FakePlayerFactory;
 import de.jpx3.intave.test.IntegrationTests;
 import de.jpx3.intave.test.Severity;
@@ -356,6 +362,32 @@ public final class ReaderTests extends IntegrationTests {
       assertEquals(changed.yaw(), converter.nativeType().getMethod("yRot").invoke(replacement));
       assertEquals(changed.pitch(), converter.nativeType().getMethod("xRot").invoke(replacement));
     }
+  }
+
+  @Test(testCode = "fresh-player-teleport", severity = Severity.ERROR)
+  public void testFreshPlayerTeleportWrite() {
+    if (MinecraftVersions.VER1_21_3.below()) return;
+
+    PositionMoveRotation change = new PositionMoveRotation(
+      new Position(12.25D, 64.5D, -3.75D),
+      new Motion(0.125D, -0.25D, 0.5D),
+      new Rotation(90.0F, -30.0F)
+    );
+    Set<Relative> flags = EnumSet.of(Relative.X, Relative.DELTA_Y);
+    Teleport teleport = Teleport.of(1L, OptionalInt.of(37), change, flags, null, true);
+    PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.POSITION);
+
+    try (PlayerTeleportReader reader = PacketReaders.readerOf(packet)) {
+      reader.writeTeleport(teleport);
+    }
+
+    try (PlayerTeleportReader reader = PacketReaders.readerOf(packet)) {
+      assertEquals(teleport.change(), reader.positionMoveRotation());
+      assertEquals(teleport.relativeSet(), reader.flags());
+      assertEquals(teleport.id(), reader.teleportId());
+    }
+    assertNull(PosMoveRotConverter.INSTANCE.getSpecific(null));
+    assertNull(PosMoveRotConverter.INSTANCE.getGeneric(null));
   }
 
   @Test(testCode = "partial-player-movement", severity = Severity.ERROR)

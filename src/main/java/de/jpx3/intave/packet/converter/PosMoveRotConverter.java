@@ -19,6 +19,9 @@ public final class PosMoveRotConverter implements EquivalentConverter<PositionMo
 
   @Override
   public Object getGeneric(PositionMoveRotation specific) {
+    if (specific == null) {
+      return null;
+    }
     ByteBuf medium = caches.get();
     intaveCodec.encode(medium, specific);
     Object decode = nativeCodec.decode(medium);
@@ -28,6 +31,9 @@ public final class PosMoveRotConverter implements EquivalentConverter<PositionMo
 
   @Override
   public PositionMoveRotation getSpecific(Object generic) {
+    if (generic == null) {
+      return null;
+    }
     ByteBuf medium = caches.get();
     nativeCodec.encode(medium, generic);
     PositionMoveRotation decode = intaveCodec.decode(medium);

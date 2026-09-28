@@ -300,23 +300,13 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 			throw new IllegalArgumentException("teleport must not be null");
 		}
     additiveCompanionMotion = teleport.additiveMotionPacket();
-    Position position = teleport.change().position();
-    Motion motion = teleport.change().motion();
-    Rotation rotation = teleport.change().rotation();
+    PositionMoveRotation change = teleport.change();
+    Motion motion = change.motion();
     companionMotion = additiveCompanionMotion == null ? null : motion.copy();
-    setPositionX(position.getX());
-    setPositionY(position.getY());
-    setPositionZ(position.getZ());
-    setYaw(rotation.yaw());
-		setPitch(rotation.pitch());
+		setPositionMoveRotation(change);
 		setFlags(teleport.relativeSet());
     if (teleport.id().isPresent()) {
-			packet().getIntegers().write(0, teleport.id().getAsInt());
-		}
-    if (DIRECT_PMR_USED) {
-      setMotionX(motion.motionX());
-      setMotionY(motion.motionY());
-      setMotionZ(motion.motionZ());
+			setTeleportId(teleport.id().getAsInt());
 		}
 	}
 
