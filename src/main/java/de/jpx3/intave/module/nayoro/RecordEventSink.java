@@ -86,8 +86,9 @@ final class RecordEventSink extends EventSink {
       environment.mainPlayer().applyIfUserPresent(user -> {
         for (Entity tracedEntity : user.meta().connection().tracedEntities()) {
           visit(new EntitySpawnEvent(
-            tracedEntity.entityId(), tracedEntity.entityName(),
+            null, tracedEntity.entityId(), tracedEntity.entityName(),
             SampleTypes.hitboxSize(tracedEntity.typeData().size()),
+            null,
             SampleTypes.position(tracedEntity.position.toPosition())
           ));
         }

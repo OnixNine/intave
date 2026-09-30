@@ -610,9 +610,10 @@ public final class EntityTracker extends Module {
       return;
     }
     EntitySpawnEvent event = new EntitySpawnEvent(
-      entity.entityId(),
+      null, entity.entityId(),
       entity.entityName(),
       SampleTypes.hitboxSize(entity.typeData().size()),
+      null,
       SampleTypes.position(entity.position.toPosition())
     );
     nayoro.emit(user, event);

@@ -61,12 +61,22 @@ public final class AbilityMetadata {
   private final AtomicReference<Map<String, List<AttributeModifier>>> attributeModifiers = new AtomicReference<>(new HashMap<>());
   private double scaleCache;
   private boolean scaleCacheValid;
+  private double maxHealthCache;
+  private boolean maxHealthCacheValid;
+  private double armorCache;
+  private boolean armorCacheValid;
+  private double armorToughnessCache;
+  private boolean armorToughnessCacheValid;
   private double jumpStrengthCache;
   private boolean jumpStrengthCacheValid;
 
   public float unsynchronizedHealth;
   public float health;
   public int foodLevel;
+  public float saturation;
+  public float experienceProgress;
+  public int experienceLevel;
+  public int totalExperience;
   public int ticksToLastHealthUpdate;
   public boolean hasViewEntity;
 
@@ -79,6 +89,10 @@ public final class AbilityMetadata {
       this.health = (float) player.getHealth();
       this.unsynchronizedHealth = this.health;
       this.foodLevel = player.getFoodLevel();
+      this.saturation = player.getSaturation();
+      this.experienceProgress = player.getExp();
+      this.experienceLevel = player.getLevel();
+      this.totalExperience = player.getTotalExperience();
       setupDefaultGameMode(player.getGameMode());
 
 	    this.flySpeed = player.getFlySpeed() / 2.0f;
@@ -88,7 +102,25 @@ public final class AbilityMetadata {
       this.allowFlying = this.flying = false;
       this.health = 20.0f;
       this.unsynchronizedHealth = this.health;
+      this.foodLevel = 20;
+      this.saturation = 5.0f;
     }
+  }
+
+  public synchronized void synchronizeVitals(
+    float health, int foodLevel, float saturation
+  ) {
+    this.health = health;
+    this.foodLevel = foodLevel;
+    this.saturation = saturation;
+  }
+
+  public synchronized void synchronizeExperience(
+    float progress, int level, int totalExperience
+  ) {
+    this.experienceProgress = progress;
+    this.experienceLevel = level;
+    this.totalExperience = totalExperience;
   }
 
   private void setupDefaultGameMode(GameMode gameMode) {
@@ -106,6 +138,10 @@ public final class AbilityMetadata {
     boolean atLeastMinecraft16 = MinecraftVersions.VER1_16_0.atOrAbove();
     setupAttribute("generic.movementSpeed", atLeastMinecraft16 ? (double) 0.1F : 0.1D);
     setupAttribute("generic.maxHealth", 20.0D);
+    if (MinecraftVersions.VER1_9_0.atOrAbove()) {
+      setupAttribute("generic.armor", 0.0D);
+      setupAttribute("generic.armorToughness", 0.0D);
+    }
     setupAttribute("generic.knockbackResistance", 0.0D);
     setupAttribute("generic.attackDamage", 1.0D);
     if (MinecraftVersions.VER1_19.atOrAbove()) {
@@ -155,6 +191,9 @@ public final class AbilityMetadata {
 
   private void clearAttributeCaches() {
     scaleCacheValid = false;
+    maxHealthCacheValid = false;
+    armorCacheValid = false;
+    armorToughnessCacheValid = false;
     jumpStrengthCacheValid = false;
   }
 
@@ -164,6 +203,30 @@ public final class AbilityMetadata {
       scaleCacheValid = true;
     }
     return scaleCache;
+  }
+
+  public double maxHealth() {
+    if (!maxHealthCacheValid) {
+      maxHealthCache = attributeValue("generic.maxHealth");
+      maxHealthCacheValid = true;
+    }
+    return maxHealthCache;
+  }
+
+  public double armor() {
+    if (!armorCacheValid) {
+      armorCache = attributeValue("generic.armor");
+      armorCacheValid = true;
+    }
+    return armorCache;
+  }
+
+  public double armorToughness() {
+    if (!armorToughnessCacheValid) {
+      armorToughnessCache = attributeValue("generic.armorToughness");
+      armorToughnessCacheValid = true;
+    }
+    return armorToughnessCache;
   }
 
   public double jumpStrength() {
@@ -368,6 +431,7 @@ public final class AbilityMetadata {
     modernRemap.put("generic.movementSpeed", "movement_speed");
     modernRemap.put("generic.attackDamage", "attack_damage");
     modernRemap.put("generic.attackSpeed", "attack_speed");
+    modernRemap.put("generic.armor", "armor");
     modernRemap.put("generic.armorToughness", "armor_toughness");
     modernRemap.put("generic.attackKnockback", "attack_knockback");
     modernRemap.put("generic.jump_strength", "jump_strength");

@@ -82,6 +82,13 @@ public final class FakePlayerFactory {
           return MinecraftVersions.VER1_9_0.atOrAbove() ? 20.0 : 20.0f;
         case "getFoodLevel":
           return 20;
+        case "getSaturation":
+          return 5.0f;
+        case "getExp":
+          return 0.0f;
+        case "getLevel":
+        case "getTotalExperience":
+          return 0;
         case "isFlying":
         case "getAllowFlight":
         case "isSprinting":

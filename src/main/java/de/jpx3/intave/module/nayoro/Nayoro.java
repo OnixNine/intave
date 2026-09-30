@@ -23,6 +23,7 @@ import de.jpx3.intave.module.Modules;
 import de.jpx3.intave.module.linker.bukkit.BukkitEventSubscription;
 import de.jpx3.intave.module.nayoro.sink.ForwardEventSink;
 import de.jpx3.intave.module.nayoro.stream.ManualBufferedOutputStream;
+import de.jpx3.intave.module.tracker.player.PlayerVitalsTracker;
 import de.jpx3.intave.user.User;
 import de.jpx3.intave.user.UserLocal;
 import de.jpx3.intave.user.UserRepository;
@@ -101,6 +102,7 @@ public final class Nayoro extends Module {
       OutputStream output = writeStreamFor(user.player(), sample, mode, transmissionId);
       RecordEventSink recordEventSink = new RecordEventSink(new LiveEnvironment(user), output, classifier);
       eventSinks.get(user).add(recordEventSink);
+      Modules.find(PlayerVitalsTracker.class).synchronizeSnapshot(user);
     } finally {
       localRecordingLock.unlock();
     }

@@ -53,6 +53,7 @@ public final class PacketReaders {
     setup(ENTITY_SOUND, EntityReader::new);
     setup(ENTITY_TELEPORT, EntityReader::new);
     setup(ENTITY_VELOCITY, EntityVelocityReader::new);
+    setup(EXPERIENCE, ExperienceReader::new);
     setup(EXPLOSION, ExplosionReader::new);
     setup(GAME_STATE_CHANGE, GameStateChangeReader::new);
     setup(LOGIN, EntityReader::new);
@@ -78,6 +79,7 @@ public final class PacketReaders {
     setup(SPAWN_ENTITY_EXPERIENCE_ORB, EntityReader::new);
     setup(UPDATE_ATTRIBUTES, EntityReader::new);
     setup(UPDATE_ENTITY_NBT, EntityReader::new);
+    setup(UPDATE_HEALTH, UpdateHealthReader::new);
     setup(USE_BED, BedUseReader::new);
     setup(WINDOW_ITEMS, WindowBulkItemReader::new);
     setup(SET_SLOT, WindowSingleItemReader::new);

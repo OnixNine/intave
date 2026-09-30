@@ -43,7 +43,6 @@ import de.jpx3.intave.math.MathHelper;
 import de.jpx3.intave.module.Module;
 import de.jpx3.intave.module.Modules;
 import de.jpx3.intave.module.linker.bukkit.BukkitEventSubscription;
-import de.jpx3.intave.module.linker.packet.Engine;
 import de.jpx3.intave.module.linker.packet.ListenerPriority;
 import de.jpx3.intave.module.linker.packet.PacketSubscription;
 import de.jpx3.intave.module.linker.packet.PrioritySlot;
@@ -95,7 +94,6 @@ import java.util.stream.Collectors;
 import static de.jpx3.intave.IntaveControl.DEBUG_MOVEMENT_IGNORE;
 import static de.jpx3.intave.check.movement.physics.environment.MoveMetric.*;
 import static de.jpx3.intave.math.MathHelper.formatDouble;
-import static de.jpx3.intave.module.feedback.FeedbackOptions.SELF_SYNCHRONIZATION;
 import static de.jpx3.intave.module.linker.packet.PacketId.Client.*;
 import static de.jpx3.intave.module.linker.packet.PacketId.Client.POSITION;
 import static de.jpx3.intave.module.linker.packet.PacketId.Client.VEHICLE_MOVE;
@@ -802,25 +800,6 @@ public final class MovementDispatcher extends Module {
       movementData.legacyVehicleForwardKey = forwardKey;
       movementData.clientPressedJump = jumping;
     }
-  }
-
-  @PacketSubscription(
-    engine = Engine.INTERNAL,
-    packetsOut = {
-      UPDATE_HEALTH
-    }
-  )
-  public void catchFoodUpdate(PacketEvent event) {
-    Player player = event.getPlayer();
-    User user = UserRepository.userOf(player);
-    Integer originalFoodLevel = event.getPacket().getIntegers().read(0);
-    user.tickFeedback(() -> {
-      MetadataBundle meta = user.meta();
-      if (originalFoodLevel <= 6) {
-        meta.movement().setSprinting(false);
-      }
-      meta.abilities().foodLevel = originalFoodLevel;
-    }, SELF_SYNCHRONIZATION);
   }
 
   @PacketSubscription(
