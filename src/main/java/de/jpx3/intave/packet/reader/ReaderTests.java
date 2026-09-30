@@ -71,10 +71,13 @@ public final class ReaderTests extends IntegrationTests {
   public void testRecordedPacketActions() {
     for (EnumWrappers.Hand hand : EnumWrappers.Hand.values()) {
       if (MinecraftVersions.VER1_9_0.below() && hand == EnumWrappers.Hand.OFF_HAND) continue;
-      PacketContainer swing = new PacketContainer(PacketType.Play.Client.ARM_ANIMATION);
-      if (MinecraftVersions.VER1_9_0.atOrAbove()) swing.getHands().write(0, hand);
-      try (ArmAnimationReader reader = PacketReaders.readerOf(swing)) {
-        assertEquals(hand, reader.hand());
+      // 26.3 removed the serverbound swing packet; the other action packets still exist.
+      if (MinecraftVersions.VER26_3.below()) {
+        PacketContainer swing = new PacketContainer(PacketType.Play.Client.ARM_ANIMATION);
+        if (MinecraftVersions.VER1_9_0.atOrAbove()) swing.getHands().write(0, hand);
+        try (ArmAnimationReader reader = PacketReaders.readerOf(swing)) {
+          assertEquals(hand, reader.hand());
+        }
       }
       PacketContainer use = new PacketContainer(PacketType.Play.Client.BLOCK_PLACE);
       if (MinecraftVersions.VER1_9_0.atOrAbove()) {
