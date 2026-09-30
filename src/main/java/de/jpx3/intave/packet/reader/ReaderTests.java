@@ -67,6 +67,36 @@ public final class ReaderTests extends IntegrationTests {
     super("PR");
   }
 
+  @Test(testCode = "legacy-entity-use", severity = Severity.ERROR)
+  public void testLegacyEntityUse() {
+    if (MinecraftVersions.VER1_17_0.atOrAbove()) return;
+
+    org.bukkit.util.Vector hitPosition = new org.bukkit.util.Vector(0.25, 1.5, -0.5);
+    for (EnumWrappers.EntityUseAction action : Arrays.asList(
+      EnumWrappers.EntityUseAction.INTERACT, EnumWrappers.EntityUseAction.INTERACT_AT
+    )) {
+      for (EnumWrappers.Hand hand : EnumWrappers.Hand.values()) {
+        if (MinecraftVersions.VER1_9_0.below() && hand == EnumWrappers.Hand.OFF_HAND) continue;
+
+        PacketContainer packet = new PacketContainer(PacketType.Play.Client.USE_ENTITY);
+        packet.getEntityUseActions().write(0, action);
+        if (MinecraftVersions.VER1_9_0.atOrAbove()) {
+          packet.getHands().write(0, hand);
+        }
+        packet.getVectors().write(0, action == EnumWrappers.EntityUseAction.INTERACT_AT ? hitPosition : null);
+        try (EntityUseReader reader = PacketReaders.readerOf(packet)) {
+          assertEquals(action, reader.useAction());
+          assertEquals(hand, reader.hand());
+          if (action == EnumWrappers.EntityUseAction.INTERACT_AT) {
+            assertEquals(hitPosition, reader.hitPosition().convertToBukkitVec());
+          } else {
+            assertNull(reader.hitPosition());
+          }
+        }
+      }
+    }
+  }
+
   @Test(testCode = "player-info-null-profile", severity = Severity.ERROR)
   public void testPlayerInfoEntriesWithNullProfiles() throws ReflectiveOperationException {
     if (MinecraftVersions.VER1_19_3.below()) return;
