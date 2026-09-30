@@ -144,6 +144,145 @@ public final class ReaderTests extends IntegrationTests {
     }
   }
 
+  @Test(testCode = "native-scoreboard", severity = Severity.ERROR)
+  public void testNativeScoreboardPackets() throws ReflectiveOperationException {
+    org.bukkit.scoreboard.Scoreboard board = Bukkit.getScoreboardManager().getNewScoreboard();
+    org.bukkit.scoreboard.Objective objective = board.registerNewObjective("reader", "dummy");
+    objective.setDisplayName("Reader title");
+    Object nativeObjective = scoreboardHandle(objective);
+    Class<?> objectiveType = PacketType.Play.Server.SCOREBOARD_OBJECTIVE.getPacketClass();
+    for (int action : new int[]{0, 1, 2}) {
+      Object handle = objectiveType.getConstructor(nativeObjective.getClass(), int.class)
+        .newInstance(nativeObjective, action);
+      try (ScoreboardReader reader = PacketReaders.readerOf(new PacketContainer(PacketType.Play.Server.SCOREBOARD_OBJECTIVE, handle))) {
+        ScoreboardReader.Objective decoded = reader.objective();
+        assertEquals("reader", decoded.name);
+        assertEquals(action, decoded.action);
+        if (action == 1) {
+          assertNull(decoded.title);
+        } else {
+          assertEquals("Reader title", plainScoreboardText(decoded.title));
+        }
+      }
+    }
+
+    Class<?> displayType = PacketType.Play.Server.SCOREBOARD_DISPLAY_OBJECTIVE.getPacketClass();
+    boolean checkedDisplay = false;
+    for (java.lang.reflect.Constructor<?> constructor : displayType.getConstructors()) {
+      Class<?>[] parameters = constructor.getParameterTypes();
+      if (parameters.length != 2 || !parameters[1].isInstance(nativeObjective)) continue;
+      checkedDisplay = true;
+      for (int slot : new int[]{1, 15}) {
+        Object nativeSlot = parameters[0].isEnum() ? parameters[0].getEnumConstants()[slot] : slot;
+        Object handle = constructor.newInstance(nativeSlot, nativeObjective);
+        try (ScoreboardReader reader = PacketReaders.readerOf(new PacketContainer(PacketType.Play.Server.SCOREBOARD_DISPLAY_OBJECTIVE, handle))) {
+          assertEquals(slot == 1 ? "sidebar" : "team_red", reader.display().slot);
+          assertEquals("reader", reader.display().objective);
+        }
+      }
+    }
+    assertTrue(checkedDisplay);
+
+    org.bukkit.scoreboard.Team team = board.registerNewTeam("readers");
+    team.setPrefix("pre ");
+    team.setSuffix(" post");
+    team.addEntry("Entry");
+    if (MinecraftVersions.VER1_13_0.atOrAbove()) {
+      java.lang.reflect.Method setColor = team.getClass().getMethod("setColor", org.bukkit.ChatColor.class);
+      setColor.setAccessible(true);
+      setColor.invoke(team, org.bukkit.ChatColor.RED);
+    }
+    Object nativeTeam = scoreboardHandle(team);
+    Class<?> teamType = PacketType.Play.Server.SCOREBOARD_TEAM.getPacketClass();
+    for (int action : new int[]{0, 1, 2}) {
+      Object handle = null;
+      if (MinecraftVersions.VER1_17_0.below()) {
+        handle = teamType.getConstructor(nativeTeam.getClass(), int.class).newInstance(nativeTeam, action);
+      } else {
+        for (java.lang.reflect.Method method : teamType.getDeclaredMethods()) {
+          Class<?>[] parameters = method.getParameterTypes();
+          if (!java.lang.reflect.Modifier.isStatic(method.getModifiers()) || method.getReturnType() != teamType
+            || parameters.length == 0 || !parameters[0].isInstance(nativeTeam)) continue;
+          if (action == 1 && parameters.length == 1) {
+            handle = method.invoke(null, nativeTeam);
+          } else if (action != 1 && parameters.length == 2 && parameters[1] == boolean.class) {
+            handle = method.invoke(null, nativeTeam, action == 0);
+          }
+        }
+      }
+      assertTrue(handle != null);
+      try (ScoreboardReader reader = PacketReaders.readerOf(new PacketContainer(PacketType.Play.Server.SCOREBOARD_TEAM, handle))) {
+        ScoreboardReader.Team decoded = reader.team();
+        assertEquals("readers", decoded.name);
+        assertEquals(action, decoded.action);
+        if (action != 1) {
+          assertEquals("pre ", plainScoreboardText(decoded.prefix));
+          assertEquals(" post", plainScoreboardText(decoded.suffix));
+          assertEquals(MinecraftVersions.VER1_13_0.atOrAbove() ? "red" : "reset", decoded.color);
+        }
+        if (action == 0) assertEquals(Collections.singletonList("Entry"), decoded.entries);
+      }
+    }
+
+    PacketContainer score;
+    if (MinecraftVersions.VER1_20_3.atOrAbove()) {
+      Class<?> scoreType = PacketType.Play.Server.SCOREBOARD_SCORE.getPacketClass();
+      Object displayName = com.comphenix.protocol.wrappers.WrappedChatComponent.fromText("Visible entry").getHandle();
+      Object handle = scoreType.getConstructor(String.class, String.class, int.class, Optional.class, Optional.class)
+        .newInstance("Entry", "reader", 42, Optional.of(displayName), Optional.empty());
+      score = new PacketContainer(PacketType.Play.Server.SCOREBOARD_SCORE, handle);
+    } else {
+      score = new PacketContainer(PacketType.Play.Server.SCOREBOARD_SCORE);
+      score.getStrings().write(0, "Entry").write(1, "reader");
+      score.getIntegers().write(0, 42);
+      score.getScoreboardActions().write(0, EnumWrappers.ScoreboardAction.CHANGE);
+    }
+    try (ScoreboardReader reader = PacketReaders.readerOf(score)) {
+      ScoreboardReader.Score decoded = reader.score();
+      assertEquals("Entry", decoded.owner);
+      assertEquals("reader", decoded.objective);
+      assertEquals(42, decoded.value);
+      assertFalse(decoded.remove);
+      if (MinecraftVersions.VER1_20_3.atOrAbove()) assertEquals("Visible entry", plainScoreboardText(decoded.displayName));
+    }
+    if (MinecraftVersions.VER1_20_3.atOrAbove()) {
+      Class<?> resetType = PacketType.Play.Server.RESET_SCORE.getPacketClass();
+      for (String name : Arrays.asList("reader", null)) {
+        Object handle = resetType.getConstructor(String.class, String.class).newInstance("Entry", name);
+        try (ScoreboardReader reader = PacketReaders.readerOf(new PacketContainer(PacketType.Play.Server.RESET_SCORE, handle))) {
+          assertEquals("Entry", reader.resetScore().owner);
+          if (name == null) {
+            assertNull(reader.resetScore().objective);
+          } else {
+            assertEquals(name, reader.resetScore().objective);
+          }
+          assertTrue(reader.resetScore().remove);
+        }
+      }
+    } else {
+      score.getScoreboardActions().write(0, EnumWrappers.ScoreboardAction.REMOVE);
+      try (ScoreboardReader reader = PacketReaders.readerOf(score)) {
+        assertTrue(reader.score().remove);
+      }
+    }
+  }
+
+  private static Object scoreboardHandle(Object value) throws ReflectiveOperationException {
+    try {
+      java.lang.reflect.Method method = value.getClass().getDeclaredMethod("getHandle");
+      method.setAccessible(true);
+      return method.invoke(value);
+    } catch (NoSuchMethodException legacyTeam) {
+      java.lang.reflect.Field field = value.getClass().getDeclaredField("team");
+      field.setAccessible(true);
+      return field.get(value);
+    }
+  }
+
+  private static String plainScoreboardText(String value) {
+    return org.bukkit.ChatColor.stripColor(value);
+  }
+
   @Test(testCode = "player-info-null-profile", severity = Severity.ERROR)
   public void testPlayerInfoEntriesWithNullProfiles() throws ReflectiveOperationException {
     if (MinecraftVersions.VER1_19_3.below()) return;

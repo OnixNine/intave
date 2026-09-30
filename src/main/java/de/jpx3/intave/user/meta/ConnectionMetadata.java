@@ -46,6 +46,7 @@ public final class ConnectionMetadata {
   private static final long LOADED_CLIENT_CHUNK = 0L;
   private final Map<Long, Long> clientChunkStates = Maps.newConcurrentMap();
   private final AtomicLong clientChunkSequence = new AtomicLong();
+  private final ClientScoreboard clientScoreboard = new ClientScoreboard();
 
   private final Set<Integer> entityIds = new HashSet<>();
   private final List<Entity> synchronizedEntities = Lists.newCopyOnWriteArrayList();
@@ -221,6 +222,10 @@ public final class ConnectionMetadata {
 
   public FeedbackQueue feedbackQueue() {
     return feedbackQueue;
+  }
+
+  public ClientScoreboard clientScoreboard() {
+    return clientScoreboard;
   }
 
   public Map<Long, Queue<FeedbackRequest<?>>> transactionAppendMap() {
