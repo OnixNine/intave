@@ -28,6 +28,7 @@ public interface PlayerContainer {
   int id();
   int version();
   boolean outdatedClient();
+  boolean flying();
   <T extends CheckCustomMetadata> T meta(Class<T> metaClass);
 
   default Rotation rotation() {

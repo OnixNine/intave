@@ -9,6 +9,10 @@ public class AbilityOutReader extends AbstractPacketReader {
     return packet().getFloat().read(1);
   }
 
+  public boolean flying() {
+    return packet().getBooleans().read(1);
+  }
+
   public boolean flyingAllowed() {
     return packet().getBooleans().read(2);
   }

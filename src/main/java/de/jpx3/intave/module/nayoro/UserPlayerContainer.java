@@ -90,6 +90,11 @@ public final class UserPlayerContainer implements PlayerContainer {
   }
 
   @Override
+  public boolean flying() {
+    return user.meta().abilities().acknowledgedFlying();
+  }
+
+  @Override
   public boolean inGameMode(GameMode gameMode) {
     AbilityTracker.GameMode nativeGameMode = AbilityTracker.GameMode.fromBukkit(gameMode);
     return user.meta().abilities().inGameModeIncludePending(nativeGameMode);

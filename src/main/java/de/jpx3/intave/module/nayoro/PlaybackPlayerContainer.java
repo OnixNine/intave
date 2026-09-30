@@ -12,6 +12,7 @@
 package de.jpx3.intave.module.nayoro;
 
 import ac.intave.samples.event.AttackEvent;
+import ac.intave.samples.event.PlayerFlyToggleEvent;
 import ac.intave.samples.event.PlayerInitEvent;
 import ac.intave.samples.event.PlayerMoveEvent;
 import de.jpx3.intave.module.mitigate.AttackNerfStrategy;
@@ -32,6 +33,7 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
   private int id;
   private int version;
   private boolean outdated;
+  private boolean flying;
   private double posX;
   private double posY;
   private double posZ;
@@ -60,6 +62,11 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
   @Override
   public boolean outdatedClient() {
     return outdated;
+  }
+
+  @Override
+  public boolean flying() {
+    return flying;
   }
 
   @Override
@@ -244,6 +251,9 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
     id = event.id();
     version = event.clientVersion();
     outdated = event.serverVersion() > version;
+    if (event.isFlying() != null) {
+      flying = event.isFlying();
+    }
 
     ac.intave.samples.share.Position position = event.position();
     posX = position.x();
@@ -257,6 +267,12 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
     lastYaw = yaw;
     lastPitch = pitch;
 
+    visitAny(event);
+  }
+
+  @Override
+  public void visit(PlayerFlyToggleEvent event) {
+    flying = event.isFlying();
     visitAny(event);
   }
 

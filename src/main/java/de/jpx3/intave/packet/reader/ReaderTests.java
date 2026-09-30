@@ -67,6 +67,18 @@ public final class ReaderTests extends IntegrationTests {
     super("PR");
   }
 
+  @Test(testCode = "recorded-abilities", severity = Severity.ERROR)
+  public void testRecordedAbilities() {
+    PacketContainer packet = new PacketContainer(PacketType.Play.Server.ABILITIES);
+    for (boolean flying : new boolean[]{false, true}) {
+      packet.getBooleans().write(1, flying).write(2, !flying);
+      try (AbilityOutReader reader = PacketReaders.readerOf(packet)) {
+        assertEquals(flying, reader.flying());
+        assertEquals(!flying, reader.flyingAllowed());
+      }
+    }
+  }
+
   @Test(testCode = "legacy-entity-use", severity = Severity.ERROR)
   public void testLegacyEntityUse() {
     if (MinecraftVersions.VER1_17_0.atOrAbove()) return;

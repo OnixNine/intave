@@ -80,7 +80,8 @@ final class RecordEventSink extends EventSink {
       visit(new PlayerInitEvent(
         player.name(), player.uuid(), player.id(), player.version(),
         ProtocolVersionConverter.protocolVersionBy(MinecraftVersion.current()),
-        SampleTypes.position(player.position()), SampleTypes.rotation(player.rotation())
+        SampleTypes.position(player.position()), SampleTypes.rotation(player.rotation()),
+        player.flying()
       ));
       visit(new PropertiesEvent(environment.properties()));
       environment.mainPlayer().applyIfUserPresent(user -> {

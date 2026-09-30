@@ -11,8 +11,10 @@
 
 package de.jpx3.intave.module.tracker.player;
 
+import ac.intave.samples.event.PlayerFlyToggleEvent;
 import com.comphenix.protocol.events.PacketEvent;
 import de.jpx3.intave.module.Module;
+import de.jpx3.intave.module.Modules;
 import de.jpx3.intave.module.linker.packet.ListenerPriority;
 import de.jpx3.intave.module.linker.packet.PacketId;
 import de.jpx3.intave.module.linker.packet.PacketSubscription;
@@ -24,12 +26,36 @@ import de.jpx3.intave.user.User;
 import de.jpx3.intave.user.meta.AbilityMetadata;
 import de.jpx3.intave.user.meta.MetadataBundle;
 import de.jpx3.intave.user.meta.MovementMetadata;
+import org.bukkit.event.Cancellable;
+
+import java.util.function.BiConsumer;
 
 import static de.jpx3.intave.module.linker.packet.PacketId.Client.*;
 import static de.jpx3.intave.module.linker.packet.PacketId.Server.*;
 import static de.jpx3.intave.packet.reader.GameStateChangeReader.GameState.CHANGE_GAME_MODE;
 
 public final class AbilityTracker extends Module {
+  private final BiConsumer<User, PlayerFlyToggleEvent> flightEmitter;
+
+  public AbilityTracker() {
+    this((user, event) -> Modules.nayoro().emit(user, event));
+  }
+
+  AbilityTracker(BiConsumer<User, PlayerFlyToggleEvent> flightEmitter) {
+    this.flightEmitter = flightEmitter;
+  }
+
+  @PacketSubscription(priority = ListenerPriority.MONITOR, packetsIn = ABILITIES_IN)
+  public void recordClientAbilities(User user, AbilityInReader reader, Cancellable cancellable) {
+    if (cancellable.isCancelled()) {
+      return;
+    }
+    boolean flying = reader.requestedFlying();
+    if (user.meta().abilities().acknowledgeClientFlying(flying)) {
+      flightEmitter.accept(user, new PlayerFlyToggleEvent(flying));
+    }
+  }
+
   @PacketSubscription(packetsOut = CAMERA)
   public void receiveCamera(User user, EntityReader reader) {
     int entityId = reader.entityId();
@@ -47,8 +73,7 @@ public final class AbilityTracker extends Module {
   )
   public void receiveAbilities(User user, AbilityInReader reader) {
     AbilityMetadata abilityData = user.meta().abilities();
-    MovementMetadata movementData = user.meta().movement();
-    boolean flying = reader.requestedFlying();
+	  boolean flying = reader.requestedFlying();
     if (abilityData.allowFlying()) {
       if (flying) {
         abilityData.setFlying(true);
@@ -70,6 +95,7 @@ public final class AbilityTracker extends Module {
     AbilityMetadata abilityData = meta.abilities();
     float flyingSpeed = reader.flyingSpeed();
     float walkingSpeed = reader.walkingSpeed();
+    boolean flying = reader.flying();
     boolean allowedFlight = reader.flyingAllowed();
     boolean critical = abilityData.allowFlying() && !allowedFlight && movement.criticalTeleportRateLimiter.tryAcquire();
     if (critical) {
@@ -83,6 +109,9 @@ public final class AbilityTracker extends Module {
       abilityData.setWalkSpeed(walkingSpeed);
       abilityData.setFlySpeed(flyingSpeed);
       abilityData.setAllowFlying(allowedFlight);
+      if (abilityData.acknowledgeFlying(flying)) {
+        flightEmitter.accept(user, new PlayerFlyToggleEvent(flying));
+      }
       if (critical) {
         if (movement.criticalFlyingDisallowStacks > 0) {
           movement.criticalFlyingDisallowStacks--;

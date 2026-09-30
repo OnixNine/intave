@@ -49,6 +49,7 @@ public final class AbilityMetadata {
 
   private final Player player;
   private boolean flying;
+  private boolean acknowledgedFlying;
   private boolean allowFlying;
   public boolean disabledFlying;
 
@@ -86,6 +87,7 @@ public final class AbilityMetadata {
     if (hasPlayer) {
       this.allowFlying = player.getAllowFlight();
       this.flying = player.isFlying();
+      this.acknowledgedFlying = this.flying;
       this.health = (float) player.getHealth();
       this.unsynchronizedHealth = this.health;
       this.foodLevel = player.getFoodLevel();
@@ -100,6 +102,7 @@ public final class AbilityMetadata {
       setupAttributes();
     } else {
       this.allowFlying = this.flying = false;
+      this.acknowledgedFlying = false;
       this.health = 20.0f;
       this.unsynchronizedHealth = this.health;
       this.foodLevel = 20;
@@ -504,6 +507,27 @@ public final class AbilityMetadata {
 
   public boolean flying() {
     return flying;
+  }
+
+  public synchronized boolean acknowledgedFlying() {
+    return acknowledgedFlying;
+  }
+
+  public synchronized boolean acknowledgeFlying(boolean flying) {
+    this.flying = flying;
+    return recordFlying(flying);
+  }
+
+  public synchronized boolean acknowledgeClientFlying(boolean flying) {
+    return allowFlying && recordFlying(flying);
+  }
+
+  private boolean recordFlying(boolean flying) {
+    if (acknowledgedFlying == flying) {
+      return false;
+    }
+    acknowledgedFlying = flying;
+    return true;
   }
 
   public boolean allowFlying() {
