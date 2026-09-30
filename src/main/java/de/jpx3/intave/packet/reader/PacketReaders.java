@@ -80,6 +80,7 @@ public final class PacketReaders {
     setup(UPDATE_ATTRIBUTES, EntityReader::new);
     setup(UPDATE_ENTITY_NBT, EntityReader::new);
     setup(UPDATE_HEALTH, UpdateHealthReader::new);
+    setup(UPDATE_TIME, TimeUpdateReader::new);
     setup(USE_BED, BedUseReader::new);
     setup(WINDOW_ITEMS, WindowBulkItemReader::new);
     setup(SET_SLOT, WindowSingleItemReader::new);

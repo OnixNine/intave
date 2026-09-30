@@ -97,6 +97,53 @@ public final class ReaderTests extends IntegrationTests {
     }
   }
 
+  @Test(testCode = "player-time", severity = Severity.ERROR)
+  public void testNativePlayerTime() throws ReflectiveOperationException {
+    Class<?> type = PacketType.Play.Server.UPDATE_TIME.getPacketClass();
+    Object handle;
+    boolean clocks;
+    try {
+      handle = type.getConstructor(long.class, Map.class).newInstance(123L, Collections.emptyMap());
+      clocks = true;
+    } catch (NoSuchMethodException legacy) {
+      handle = type.getConstructor(long.class, long.class, boolean.class).newInstance(123L, 18000L, false);
+      clocks = false;
+    }
+    PacketContainer packet = new PacketContainer(PacketType.Play.Server.UPDATE_TIME, handle);
+    try (TimeUpdateReader reader = PacketReaders.readerOf(packet)) {
+      TimeUpdateReader.Update update = reader.update();
+      ac.intave.samples.event.TimeEvent time = update.event();
+      assertEquals(123L, update.gameTime());
+      if (clocks) {
+        assertNull(time.time());
+        assertTrue(time.clocks().isEmpty());
+      } else {
+        assertEquals(18000L, time.time());
+        assertEquals(false, time.ticking());
+      }
+    }
+  }
+
+  @Test(testCode = "world-weather", severity = Severity.ERROR)
+  public void testNativeWeather() {
+    PacketContainer packet = new PacketContainer(PacketType.Play.Server.GAME_STATE_CHANGE);
+    for (GameStateChangeReader.GameState state : Arrays.asList(
+      GameStateChangeReader.GameState.END_RAIN, GameStateChangeReader.GameState.BEGIN_RAIN,
+      GameStateChangeReader.GameState.RAIN_LEVEL_CHANGE, GameStateChangeReader.GameState.THUNDER_LEVEL_CHANGE
+    )) {
+      if (packet.getIntegers().size() > 0) {
+        packet.getIntegers().write(0, state.id());
+      } else {
+        packet.getGameStateIDs().write(0, state.id());
+      }
+      packet.getFloat().write(0, 0.625F);
+      try (GameStateChangeReader reader = PacketReaders.readerOf(packet)) {
+        assertEquals(state, reader.type());
+        assertEquals(0.625F, reader.value());
+      }
+    }
+  }
+
   @Test(testCode = "player-info-null-profile", severity = Severity.ERROR)
   public void testPlayerInfoEntriesWithNullProfiles() throws ReflectiveOperationException {
     if (MinecraftVersions.VER1_19_3.below()) return;

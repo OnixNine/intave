@@ -50,6 +50,7 @@ public final class Nayoro extends Module {
   private final Map<UUID, OperationalMode> recordingMode = GarbageCollector.watch(new ConcurrentHashMap<>());
   private final Map<UUID, Integer> samplingBufferSizes = GarbageCollector.watch(new ConcurrentHashMap<>());
   private final PacketEventDispatch packetEventDispatch = new PacketEventDispatch(this::emit);
+  private final PlayerEnvironmentRecorder playerEnvironmentRecorder = new PlayerEnvironmentRecorder(this::emit);
   private final List<Playback> playbacks = new ArrayList<>();
 
   private final ReentrantLock localRecordingLock = new ReentrantLock();
@@ -59,11 +60,13 @@ public final class Nayoro extends Module {
   @Override
   public void enable() {
     Modules.linker().packetEvents().linkSubscriptionsIn(packetEventDispatch);
+    Modules.linker().packetEvents().linkSubscriptionsIn(playerEnvironmentRecorder);
   }
 
   @Override
   public void disable() {
     Modules.linker().packetEvents().removeSubscriptionsOf(packetEventDispatch);
+    Modules.linker().packetEvents().removeSubscriptionsOf(playerEnvironmentRecorder);
   }
 
   @BukkitEventSubscription
@@ -101,7 +104,9 @@ public final class Nayoro extends Module {
       samples.put(user.id(), sample);
       OutputStream output = writeStreamFor(user.player(), sample, mode, transmissionId);
       RecordEventSink recordEventSink = new RecordEventSink(new LiveEnvironment(user), output, classifier);
-      eventSinks.get(user).add(recordEventSink);
+      playerEnvironmentRecorder.start(user, recordEventSink, () ->
+        eventSinks.get(user).add(recordEventSink)
+      );
       Modules.find(PlayerVitalsTracker.class).synchronizeSnapshot(user);
     } finally {
       localRecordingLock.unlock();

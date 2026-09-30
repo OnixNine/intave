@@ -1,14 +1,6 @@
 package de.jpx3.intave.packet.reader;
 
-import de.jpx3.intave.adapter.MinecraftVersions;
-import de.jpx3.intave.klass.Lookup;
-
-import java.lang.reflect.Field;
-
 public final class GameStateChangeReader extends AbstractPacketReader {
-  private final boolean HAS_WRAPPER = MinecraftVersions.VER1_16_0.atOrAbove();
-  private final Class<?> GAME_STATE_CLASS = HAS_WRAPPER ? Lookup.serverClass("PacketPlayOutGameStateChange$a") : null;
-  private Field FIELD_CACHE;
 
   public GameState type() {
     int index = typeIndex();
@@ -19,26 +11,10 @@ public final class GameStateChangeReader extends AbstractPacketReader {
   }
 
   private int typeIndex() {
-    if (HAS_WRAPPER) {
-      try {
-        Object wrapper = packet().getModifier().withType(GAME_STATE_CLASS).read(0);
-        if (FIELD_CACHE == null) {
-          try {
-            FIELD_CACHE = wrapper.getClass().getDeclaredField("b");
-          } catch (NoSuchFieldException exception) {
-            // 1.21.0
-            FIELD_CACHE = wrapper.getClass().getDeclaredField("id");
-          }
-          FIELD_CACHE.setAccessible(true);
-        }
-        return (int) FIELD_CACHE.get(wrapper);
-      } catch (Exception exception) {
-        exception.printStackTrace();
-        return -1;
-      }
-    } else {
+    if (packet().getIntegers().size() > 0) {
       return packet().getIntegers().read(0);
     }
+    return packet().getGameStateIDs().read(0);
   }
 
   public float value() {
