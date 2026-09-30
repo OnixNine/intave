@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 
 public final class AdvancedConfigurationLoader implements ConfigurationLoader {
   private final IntavePlugin plugin;
+  private String invalidConfigurationFile;
 
   public AdvancedConfigurationLoader(IntavePlugin plugin) {
     this.plugin = plugin;
@@ -19,6 +20,7 @@ public final class AdvancedConfigurationLoader implements ConfigurationLoader {
 
   @Override
   public YamlConfiguration fetchConfiguration() {
+    invalidConfigurationFile = null;
     Resource simpleConfig = Resources.resourceFromFile(new File(plugin.dataFolder(), "config.yml"));
     Resource simpleConfigInClasspath = Resources.resourceFromJarOrBuild("config.yml");
     if (!simpleConfig.available()) {
@@ -44,6 +46,14 @@ public final class AdvancedConfigurationLoader implements ConfigurationLoader {
       converter.convert();
       advancedConfig = advancedConfigInClasspath;
     }
+    if (!ConfigurationValidator.isValid(advancedConfig)) {
+      invalidConfigurationFile = "advanced.yml";
+    }
     return YamlConfiguration.loadConfiguration(new InputStreamReader(advancedConfig.read()));
+  }
+
+  @Override
+  public String invalidConfigurationFile() {
+    return invalidConfigurationFile;
   }
 }

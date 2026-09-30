@@ -6,15 +6,24 @@ public class ConfigurationService {
   private final ConfigSelectionResolver resolver = new ConfigSelectionResolver();
   private ConfigurationLoader loader;
   private YamlConfiguration configuration;
+  private String invalidConfigurationFile;
 
   public void init() {
     ConfigSelection selection = resolver.resolve();
     loader = selection.loader();
     configuration = loader.fetchConfiguration();
+    invalidConfigurationFile = resolver.invalidConfigurationFile();
+    if (invalidConfigurationFile == null) {
+      invalidConfigurationFile = loader.invalidConfigurationFile();
+    }
   }
 
   public YamlConfiguration configuration() {
     return configuration;
+  }
+
+  public String invalidConfigurationFile() {
+    return invalidConfigurationFile;
   }
 
   public void shutdown() {
@@ -23,5 +32,9 @@ public class ConfigurationService {
     // selection changed while Intave was still running
     loader = resolver.resolve().loader();
     configuration = loader.fetchConfiguration();
+    invalidConfigurationFile = resolver.invalidConfigurationFile();
+    if (invalidConfigurationFile == null) {
+      invalidConfigurationFile = loader.invalidConfigurationFile();
+    }
   }
 }

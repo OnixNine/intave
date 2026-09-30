@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 
 public class LegacyConfigurationLoader implements ConfigurationLoader {
   private final IntavePlugin plugin;
+  private String invalidConfigurationFile;
 
   public LegacyConfigurationLoader(IntavePlugin plugin) {
     this.plugin = plugin;
@@ -17,9 +18,18 @@ public class LegacyConfigurationLoader implements ConfigurationLoader {
 
   @Override
   public YamlConfiguration fetchConfiguration() {
+    invalidConfigurationFile = null;
     File dataFolder = IntavePlugin.singletonInstance().dataFolder();
     File settingsFile = new File(dataFolder, "settings.yml");
     Resource config = Resources.resourceFromFile(settingsFile);
+    if (!ConfigurationValidator.isValid(config)) {
+      invalidConfigurationFile = "settings.yml";
+    }
     return YamlConfiguration.loadConfiguration(new InputStreamReader(config.read()));
+  }
+
+  @Override
+  public String invalidConfigurationFile() {
+    return invalidConfigurationFile;
   }
 }

@@ -11,7 +11,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 
 public class ConfigSelectionResolver {
+  private String invalidConfigurationFile;
+
   public ConfigSelection resolve() {
+    invalidConfigurationFile = null;
     File dataFolder = IntavePlugin.singletonInstance().dataFolder();
     File settingsFile = new File(dataFolder, "settings.yml");
     if (settingsFile.exists()) {
@@ -27,6 +30,9 @@ public class ConfigSelectionResolver {
       }
       configResource = configResourceInClasspath;
     }
+    if (!ConfigurationValidator.isValid(configResource)) {
+      invalidConfigurationFile = "config.yml";
+    }
     YamlConfiguration config = YamlConfiguration.loadConfiguration(new InputStreamReader(configResource.read()));
     String configType = config.getString("config", "LEGACY");
     ConfigSelection from = ConfigSelection.from(configType);
@@ -36,4 +42,7 @@ public class ConfigSelectionResolver {
     return from;
   }
 
+  public String invalidConfigurationFile() {
+    return invalidConfigurationFile;
+  }
 }

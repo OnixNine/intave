@@ -710,6 +710,10 @@ public final class IntavePlugin extends JavaPlugin {
     return configService.configuration();
   }
 
+  public String invalidConfigurationFile() {
+    return configService.invalidConfigurationFile();
+  }
+
   public FakePlayerEventService fakePlayerEventService() {
     return fakePlayerEventService;
   }

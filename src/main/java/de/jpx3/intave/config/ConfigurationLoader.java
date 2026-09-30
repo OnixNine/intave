@@ -4,4 +4,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 public interface ConfigurationLoader {
   YamlConfiguration fetchConfiguration();
+
+  default String invalidConfigurationFile() {
+    return null;
+  }
 }

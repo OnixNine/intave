@@ -51,6 +51,12 @@ public final class MiscBukkitEvents extends Module {
     if (!isIntaveAdministrator) {
       return;
     }
+    String invalidConfigurationFile = plugin.invalidConfigurationFile();
+    if (invalidConfigurationFile != null) {
+      sendPrefixedMessage(ChatColor.RED + invalidConfigurationFile + " contains errors and is not loaded", player);
+      sendPrefixedMessage(ChatColor.RED + "Check the console for the exact error, fix the file and restart the server", player);
+      return;
+    }
     if (BukkitPermissionCheck.permissionCheck(player, "intave.command.noupdate")) {
       return;
     }
