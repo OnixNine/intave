@@ -67,6 +67,43 @@ public final class ReaderTests extends IntegrationTests {
     super("PR");
   }
 
+  @Test(testCode = "recorded-packet-actions", severity = Severity.ERROR)
+  public void testRecordedPacketActions() {
+    for (EnumWrappers.Hand hand : EnumWrappers.Hand.values()) {
+      if (MinecraftVersions.VER1_9_0.below() && hand == EnumWrappers.Hand.OFF_HAND) continue;
+      PacketContainer swing = new PacketContainer(PacketType.Play.Client.ARM_ANIMATION);
+      if (MinecraftVersions.VER1_9_0.atOrAbove()) swing.getHands().write(0, hand);
+      try (ArmAnimationReader reader = PacketReaders.readerOf(swing)) {
+        assertEquals(hand, reader.hand());
+      }
+      PacketContainer use = new PacketContainer(PacketType.Play.Client.BLOCK_PLACE);
+      if (MinecraftVersions.VER1_9_0.atOrAbove()) {
+        use.getHands().write(0, hand);
+      } else {
+        use.getIntegers().write(0, 255);
+      }
+      try (BlockInteractionReader reader = PacketReaders.readerOf(use)) {
+        assertEquals(hand, reader.hand());
+        assertTrue(reader.isItemUseRequest());
+      }
+      if (MinecraftVersions.VER1_9_0.below()) {
+        use.getIntegers().write(0, 1);
+        try (BlockInteractionReader reader = PacketReaders.readerOf(use)) {
+          assertFalse(reader.isItemUseRequest());
+        }
+      }
+    }
+
+    PacketContainer status = new PacketContainer(PacketType.Play.Server.ENTITY_STATUS);
+    for (byte value : new byte[]{9, 35, 2}) {
+      status.getBytes().write(0, value);
+      try (EntityStatusReader reader = PacketReaders.readerOf(status)) {
+        assertEquals(value == 35, reader.indicatesTotemActivation());
+        assertEquals(value == 9, reader.indicatesItemUseFinished());
+      }
+    }
+  }
+
   @Test(testCode = "recorded-abilities", severity = Severity.ERROR)
   public void testRecordedAbilities() {
     PacketContainer packet = new PacketContainer(PacketType.Play.Server.ABILITIES);

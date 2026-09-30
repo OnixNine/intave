@@ -25,11 +25,14 @@ import de.jpx3.intave.module.linker.packet.PacketSubscription;
 import de.jpx3.intave.packet.reader.*;
 import de.jpx3.intave.user.User;
 import de.jpx3.intave.user.UserRepository;
+import de.jpx3.intave.user.meta.InventoryMetadata;
 import de.jpx3.intave.user.meta.MovementMetadata;
+import de.jpx3.intave.adapter.MinecraftVersions;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
@@ -41,6 +44,9 @@ import static de.jpx3.intave.module.linker.packet.PacketId.Client.VEHICLE_MOVE;
 import static de.jpx3.intave.module.linker.packet.PacketId.Server.*;
 
 public final class PacketEventDispatch implements PacketEventSubscriber {
+  private static volatile Method attackCooldownMethod;
+  private static volatile boolean attackCooldownMethodResolved;
+
   private final BiConsumer<? super User, ? super Event> eventEmitter;
 
   public PacketEventDispatch(BiConsumer<? super User, ? super Event> eventEmitter) {
@@ -52,12 +58,8 @@ public final class PacketEventDispatch implements PacketEventSubscriber {
       ARM_ANIMATION
     }
   )
-  public void onClick(PacketEvent event) {
-    Player player = event.getPlayer();
-    User user = UserRepository.userOf(player);
-    // The samples factory returns a shared singleton, but recording offsets are event-local.
-    ClickEvent clickEvent = new ClickEvent();
-    eventEmitter.accept(user, clickEvent);
+  public void onClick(User user, ArmAnimationReader reader) {
+    eventEmitter.accept(user, ClickEvent.create(SampleTypes.hand(reader.hand())));
   }
 
   @PacketSubscription(
@@ -66,19 +68,145 @@ public final class PacketEventDispatch implements PacketEventSubscriber {
       ATTACK_ENTITY, USE_ENTITY
     }
   )
-  public void onUse(PacketEvent event) {
-    Player player = event.getPlayer();
-    User user = UserRepository.userOf(player);
-    PacketContainer packet = event.getPacket();
-    EntityUseReader reader = PacketReaders.readerOf(packet);
+  public void onUse(
+    Player player, User user, EntityUseReader reader
+  ) {
     EnumWrappers.EntityUseAction useAction = reader.useAction();
     if (useAction == EnumWrappers.EntityUseAction.ATTACK) {
       int attackerId = player.getEntityId();
       int targetId = reader.entityId();
-      AttackEvent attackEvent = AttackEvent.create(attackerId, targetId);
+      AttackEvent attackEvent = AttackEvent.create(
+        attackerId, targetId, attackStrength(player)
+      );
       eventEmitter.accept(user, attackEvent);
+    } else {
+      EntityInteractEvent.Action action = useAction == EnumWrappers.EntityUseAction.INTERACT_AT
+        ? EntityInteractEvent.Action.INTERACT_AT
+        : useAction == EnumWrappers.EntityUseAction.INTERACT
+          ? EntityInteractEvent.Action.INTERACT
+          : EntityInteractEvent.Action.UNKNOWN;
+      eventEmitter.accept(user, new EntityInteractEvent(
+        player.getEntityId(), reader.entityId(), action,
+        SampleTypes.hand(reader.hand()),
+        action == EntityInteractEvent.Action.INTERACT_AT
+          ? SampleTypes.vector(reader.hitPosition())
+          : null
+      ));
     }
-    reader.release();
+  }
+
+  @PacketSubscription(
+    packetsIn = {
+      BLOCK_PLACE, USE_ITEM, USE_ITEM_ON
+    }
+  )
+  public void receiveItemUse(
+    User user, BlockInteractionReader reader
+  ) {
+    if (!reader.isItemUseRequest()) {
+      return;
+    }
+    InventoryMetadata inventory = user.meta().inventory();
+    EnumWrappers.Hand hand = reader.hand();
+    if (hand == null) {
+      hand = inventory.activeHand();
+    }
+    eventEmitter.accept(user, new ItemActionEvent(
+      ItemActionEvent.Action.USE,
+      SampleTypes.hand(hand),
+      SampleTypes.item(itemInHand(inventory, hand))
+    ));
+  }
+
+  @PacketSubscription(
+    priority = ListenerPriority.LOW,
+    packetsIn = {
+      BLOCK_DIG
+    }
+  )
+  public void receiveItemReleaseOrStab(
+    Player player, User user, BlockDigReader reader
+  ) {
+    InventoryMetadata inventory = user.meta().inventory();
+    if (reader.isStab()) {
+      EnumWrappers.Hand hand = EnumWrappers.Hand.MAIN_HAND;
+      eventEmitter.accept(user, new ItemActionEvent(
+        ItemActionEvent.Action.STAB,
+        SampleTypes.hand(hand),
+        SampleTypes.item(itemInHand(inventory, hand)),
+        attackStrength(player)
+      ));
+      return;
+    }
+    if (reader.action() != EnumWrappers.PlayerDigType.RELEASE_USE_ITEM) {
+      return;
+    }
+    EnumWrappers.Hand hand = inventory.activeHand();
+    eventEmitter.accept(user, new ItemActionEvent(
+      ItemActionEvent.Action.RELEASE_USE,
+      SampleTypes.hand(hand),
+      SampleTypes.item(itemInHand(inventory, hand))
+    ));
+  }
+
+  private static ItemStack itemInHand(
+    InventoryMetadata inventory, EnumWrappers.Hand hand
+  ) {
+    return hand == EnumWrappers.Hand.OFF_HAND
+      ? inventory.offhandItem()
+      : inventory.heldItem();
+  }
+
+  private static Float attackStrength(Player player) {
+    if (MinecraftVersions.VER1_9_0.below()) {
+      return null;
+    }
+    Method method = attackCooldownMethod();
+    if (method == null) {
+      return null;
+    }
+    float strength;
+    try {
+      Object value = method.invoke(player);
+      if (!(value instanceof Number)) {
+        return null;
+      }
+      strength = ((Number) value).floatValue();
+    } catch (ReflectiveOperationException exception) {
+      return null;
+    }
+    if (!Float.isFinite(strength)) {
+      return null;
+    }
+    return Math.max(0.0F, Math.min(1.0F, strength));
+  }
+
+  private static Method attackCooldownMethod() {
+    if (!attackCooldownMethodResolved) {
+      try {
+        attackCooldownMethod = Player.class.getMethod("getAttackCooldown");
+      } catch (NoSuchMethodException ignored) {
+        attackCooldownMethod = null;
+      }
+      attackCooldownMethodResolved = true;
+    }
+    return attackCooldownMethod;
+  }
+
+  @PacketSubscription(
+    priority = ListenerPriority.HIGH,
+    packetsOut = ENTITY_STATUS
+  )
+  public void sendEntityStatus(
+    User user, PacketEvent event, EntityStatusReader reader
+  ) {
+    if (!reader.indicatesTotemActivation()) {
+      return;
+    }
+    int entityId = reader.entityId();
+    user.packetTickFeedback(event, () ->
+      eventEmitter.accept(user, new TotemPopEvent(entityId))
+    );
   }
 
   @PacketSubscription(
@@ -108,12 +236,15 @@ public final class PacketEventDispatch implements PacketEventSubscriber {
     boolean sneaking = movement.isSneaking();
     boolean recentlyTeleported = movement.ticksPast(TELEPORT) <= 3;
     boolean jumped = movement.physicsJumped;
+    boolean sprinting = movement.isSprinting();
+    String pose = movement.pose().name();
 
     PlayerMoveEvent movementEvent = PlayerMoveEvent.create(
       keyStrafe, keyForward,
       new Position(x, y, z), new Rotation(yaw, pitch),
       collidedHorizontally, collidedVertically, inWater, inLava,
-      inVehicle, sneaking, recentlyTeleported, jumped
+      inVehicle, sneaking, recentlyTeleported, jumped,
+      sprinting, sneaking, pose
     );
     eventEmitter.accept(user, movementEvent);
   }

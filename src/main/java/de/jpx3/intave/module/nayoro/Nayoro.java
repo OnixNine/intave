@@ -13,11 +13,14 @@ package de.jpx3.intave.module.nayoro;
 
 import ac.intave.samples.event.Event;
 import ac.intave.samples.event.EventSink;
+import ac.intave.samples.event.MarkerEvent;
 import ac.intave.samples.share.Classifier;
 import de.jpx3.intave.IntaveControl;
 import de.jpx3.intave.IntavePlugin;
 import de.jpx3.intave.cleanup.GarbageCollector;
 import de.jpx3.intave.executor.Synchronizer;
+import de.jpx3.intave.executor.task.Task;
+import de.jpx3.intave.executor.task.Tasks;
 import de.jpx3.intave.module.Module;
 import de.jpx3.intave.module.Modules;
 import de.jpx3.intave.module.linker.bukkit.BukkitEventSubscription;
@@ -53,6 +56,7 @@ public final class Nayoro extends Module {
   private final PacketEventDispatch packetEventDispatch = new PacketEventDispatch(this::emit);
   private final PlayerEnvironmentRecorder playerEnvironmentRecorder = new PlayerEnvironmentRecorder(this::emit);
   private final List<Playback> playbacks = new ArrayList<>();
+  private Task markerTask;
 
   private final ReentrantLock localRecordingLock = new ReentrantLock();
 
@@ -62,12 +66,28 @@ public final class Nayoro extends Module {
   public void enable() {
     Modules.linker().packetEvents().linkSubscriptionsIn(packetEventDispatch);
     Modules.linker().packetEvents().linkSubscriptionsIn(playerEnvironmentRecorder);
+    markerTask = Tasks.periodicNamed(
+      "Nayoro.marker", this::emitGlobalMarker, 20L * 60, 20L * 60
+    ).startAsync();
   }
 
   @Override
   public void disable() {
     Modules.linker().packetEvents().removeSubscriptionsOf(packetEventDispatch);
     Modules.linker().packetEvents().removeSubscriptionsOf(playerEnvironmentRecorder);
+    if (markerTask != null) {
+      markerTask.cancel();
+      markerTask = null;
+    }
+  }
+
+  private void emitGlobalMarker() {
+    UUID markerId = UUID.randomUUID();
+    UserRepository.applyOnOnlineUsers(user -> {
+      if (recordingActiveFor(user)) {
+        emit(user, new MarkerEvent(markerId));
+      }
+    });
   }
 
   @BukkitEventSubscription

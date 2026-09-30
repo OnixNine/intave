@@ -15,6 +15,7 @@ import de.jpx3.intave.annotate.Nullable;
 
 public final class EntityStatusReader extends EntityReader {
   private static final byte ITEM_USE_FINISHED = 9;
+  private static final byte TOTEM_ACTIVATION = 35;
 
   public @Nullable Byte status() {
     return packet().getBytes().readSafely(0);
@@ -23,5 +24,10 @@ public final class EntityStatusReader extends EntityReader {
   public boolean indicatesItemUseFinished() {
     Byte status = status();
     return status != null && status == ITEM_USE_FINISHED;
+  }
+
+  public boolean indicatesTotemActivation() {
+    Byte status = status();
+    return status != null && status == TOTEM_ACTIVATION;
   }
 }

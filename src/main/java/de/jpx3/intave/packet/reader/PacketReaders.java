@@ -100,6 +100,7 @@ public final class PacketReaders {
 
     // Client packets
     setup(ABILITIES_IN, AbilityInReader::new);
+    setup(ARM_ANIMATION, ArmAnimationReader::new);
     setup(ATTACK_ENTITY, EntityUseReader::new);
     setup(BLOCK_DIG, BlockDigReader::new);
     setup(BLOCK_PLACE, BlockInteractionReader::new);

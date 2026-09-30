@@ -23,6 +23,19 @@ import org.bukkit.util.Vector;
 public final class BlockInteractionReader extends BlockPositionReader {
   private final boolean MODERN_RESOLVE = MinecraftVersions.VER1_14_0.atOrAbove();
   private final boolean HAS_SEQUENCE_NUMBER = MinecraftVersions.VER1_19_2.atOrAbove();
+  private final boolean SEPARATE_USE_ITEM_PACKET = MinecraftVersions.VER1_9_0.atOrAbove();
+
+  @Nullable
+  public EnumWrappers.Hand hand() {
+    if (!SEPARATE_USE_ITEM_PACKET) {
+      return EnumWrappers.Hand.MAIN_HAND;
+    }
+    return packet().getHands().readSafely(0);
+  }
+
+  public boolean isItemUseRequest() {
+    return SEPARATE_USE_ITEM_PACKET || enumDirection() == 255;
+  }
 
   @Nullable
   public Direction direction() {

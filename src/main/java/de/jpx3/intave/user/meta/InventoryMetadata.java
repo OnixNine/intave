@@ -11,6 +11,7 @@
 
 package de.jpx3.intave.user.meta;
 
+import com.comphenix.protocol.wrappers.EnumWrappers;
 import de.jpx3.intave.IntaveControl;
 import de.jpx3.intave.IntavePlugin;
 import de.jpx3.intave.adapter.MinecraftVersions;
@@ -56,6 +57,7 @@ public final class InventoryMetadata {
   private int handSlot;
   private ItemStack previousSpearThisTick;
   private volatile boolean handActive;
+  private volatile EnumWrappers.Hand activeHand;
   private final Lock handActiveLock = new ReentrantLock();
   private Material activeItemType;
   private List<String> items = new ArrayList<>();
@@ -73,6 +75,13 @@ public final class InventoryMetadata {
 
   public boolean handActive() {
     return handActive;
+  }
+
+  public EnumWrappers.Hand activeHand() {
+    if (activeHand != null) {
+      return activeHand;
+    }
+    return offhandItemPrimary() ? EnumWrappers.Hand.OFF_HAND : EnumWrappers.Hand.MAIN_HAND;
   }
 
   public void registerSkullRequest(String name) {
@@ -158,17 +167,26 @@ public final class InventoryMetadata {
   }
 
   public void activateHand() {
+    activateHand(null);
+  }
+
+  public void activateHand(@Nullable EnumWrappers.Hand hand) {
     handActiveLock.lock();
     try {
       if (handActive) {
+        if (hand != null) {
+          activeHand = hand;
+        }
         return;
       }
       this.handActive = true;
+      this.activeHand = hand != null ? hand
+        : offhandItemPrimary() ? EnumWrappers.Hand.OFF_HAND : EnumWrappers.Hand.MAIN_HAND;
 
       User user = UserRepository.userOf(player);
       user.meta().movement().handItemSimulationFails = 0;
 
-      if (offhandItemPrimary()) {
+      if (activeHand == EnumWrappers.Hand.OFF_HAND) {
         this.foodItem = ItemProperties.foodConsumable(user, offhandItemType());
         this.activeItemType = offhandItemType();
       } else {
@@ -194,6 +212,7 @@ public final class InventoryMetadata {
       User user = UserRepository.userOf(player);
       MovementMetadata movementData = user.meta().movement();
       if (!handActive) {
+        activeHand = null;
         return;
       }
       ItemStack heldItem = heldItem();
@@ -218,6 +237,7 @@ public final class InventoryMetadata {
         System.out.println("Item usage ended: " + activeItem);
       }
       this.activeItemType = Material.AIR;
+      this.activeHand = null;
     } finally {
       handActiveLock.unlock();
     }
@@ -261,6 +281,9 @@ public final class InventoryMetadata {
   @Deprecated
   public void setHandActive(boolean handActive) {
     this.handActive = handActive;
+    if (!handActive) {
+      this.activeHand = null;
+    }
   }
 
   public void restoreRecordedState(
@@ -279,6 +302,7 @@ public final class InventoryMetadata {
   ) {
     this.handSlot = heldSlot;
     this.handActive = handActive;
+    this.activeHand = null;
     this.handActiveTicks = handActiveTicks;
     this.pastHandActiveTicks = pastHandActiveTicks;
     this.pastItemUsageTransition = pastItemUsageTransition;

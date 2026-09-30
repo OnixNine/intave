@@ -13,9 +13,9 @@ package de.jpx3.intave.module.tracker.player;
 
 import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.events.PacketEvent;
-import com.comphenix.protocol.reflect.StructureModifier;
 import com.comphenix.protocol.wrappers.BlockPosition;
 import com.comphenix.protocol.wrappers.EnumWrappers;
+import de.jpx3.intave.packet.reader.BlockInteractionReader;
 import de.jpx3.intave.packet.reader.BlockDigReader;
 import de.jpx3.intave.IntaveControl;
 import de.jpx3.intave.IntavePlugin;
@@ -34,6 +34,7 @@ import de.jpx3.intave.user.meta.InventoryMetadata;
 import de.jpx3.intave.user.meta.PunishmentMetadata;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.ItemStack;
@@ -42,8 +43,6 @@ import static de.jpx3.intave.module.linker.packet.PacketId.Client.*;
 import static de.jpx3.intave.module.linker.packet.PacketId.Server.HELD_ITEM_SLOT_OUT;
 
 public class PlayerHandTracker extends Module {
-  private final boolean NEW_ITEM_REQUEST = MinecraftVersions.VER1_9_0.atOrAbove();
-
 //  @BukkitEventSubscription
 //  public void itemConsume(FoodLevelChangeEvent event) {
 //    if (!(event.getEntity() instanceof Player)) {
@@ -177,27 +176,17 @@ public class PlayerHandTracker extends Module {
       BLOCK_PLACE, USE_ITEM, USE_ITEM_ON
     }
   )
-  public void receiveBlockPlace(PacketEvent event) {
-    Player player = event.getPlayer();
-    User user = UserRepository.userOf(player);
-    PacketContainer packet = event.getPacket();
-    boolean requestedItemUse = requestedItemUseLegacy(packet);
-
-    if (requestedItemUse) {
-      handleItemUseRequest(event, user);
+  public void receiveBlockPlace(
+    User user, Cancellable cancellable, BlockInteractionReader reader
+  ) {
+    if (reader.isItemUseRequest()) {
+      handleItemUseRequest(cancellable, user, reader.hand());
     }
   }
 
-  private boolean requestedItemUseLegacy(PacketContainer packet) {
-    if (NEW_ITEM_REQUEST) {
-      return true;
-    } else {
-      StructureModifier<Integer> integers = packet.getIntegers();
-      return integers.read(0) == 255;
-    }
-  }
-
-  private void handleItemUseRequest(PacketEvent event, User user) {
+  private void handleItemUseRequest(
+    Cancellable cancellable, User user, EnumWrappers.Hand hand
+  ) {
     InventoryMetadata inventoryData = user.meta().inventory();
     PunishmentMetadata punishmentData = user.meta().punishment();
 
@@ -207,7 +196,7 @@ public class PlayerHandTracker extends Module {
     boolean sword = heldItem != null && heldItem.getType().name().endsWith("_SWORD");
 
     if (sword && System.currentTimeMillis() - punishmentData.timeLastBlockCancel < 5000) {
-      event.setCancelled(true);
+      cancellable.setCancelled(true);
       return;
     }
 
@@ -222,7 +211,7 @@ public class PlayerHandTracker extends Module {
     }
 
     if (useItem) {
-      inventoryData.activateHand();
+      inventoryData.activateHand(hand);
     }
   }
 
