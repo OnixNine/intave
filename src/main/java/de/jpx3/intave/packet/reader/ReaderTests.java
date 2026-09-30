@@ -420,6 +420,56 @@ public final class ReaderTests extends IntegrationTests {
     assertNull(PosMoveRotConverter.INSTANCE.getGeneric(null));
   }
 
+  @Test(testCode = "player-teleport-packet-state", severity = Severity.ERROR)
+  public void testPlayerTeleportUsesPacketAsOnlyState() {
+    boolean nativeMotion = MinecraftVersions.VER1_21_3.atOrAbove();
+    PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.POSITION);
+    PositionMoveRotation initial = new PositionMoveRotation(
+      new Position(12.25D, 64.5D, -3.75D), Motion.newEmpty(), new Rotation(90F, -30F)
+    );
+    try (PlayerTeleportReader reader = PacketReaders.readerOf(packet)) {
+      reader.setPositionMoveRotation(initial);
+      PositionMoveRotation snapshot = reader.positionMoveRotation();
+      // Neither input objects nor decoded snapshots are live packet views.
+      initial.position().setX(1000);
+      snapshot.position().setX(2000);
+      reader.position().setY(3000);
+      reader.rotation().setYaw(180);
+      reader.motion().setMotionX(1);
+      assertEquals(12.25D, reader.positionX());
+      assertEquals(64.5D, reader.positionY());
+      assertEquals(90F, reader.yaw());
+      assertEquals(0D, reader.motionX());
+
+      // Observe writes before the first reader is flushed or released.
+      try (PlayerTeleportReader observer = new PlayerTeleportReader()) {
+        observer.enter(packet);
+        reader.setPositionX(-16.25D);
+        reader.setPositionY(72.125D);
+        reader.setPositionZ(33.75D);
+        reader.setYaw(-125.5F);
+        reader.setPitch(45.25F);
+        reader.setMotionX(0.125D);
+        reader.setMotionY(-0.25D);
+        reader.setMotionZ(0.5D);
+        PositionMoveRotation expected = new PositionMoveRotation(
+          new Position(-16.25D, 72.125D, 33.75D),
+          nativeMotion ? new Motion(0.125D, -0.25D, 0.5D) : Motion.newEmpty(),
+          new Rotation(-125.5F, 45.25F)
+        );
+        assertEquals(expected, observer.positionMoveRotation());
+
+        observer.setPositionX(7.5D);
+        assertEquals(7.5D, reader.positionX());
+        reader.flush();
+        assertEquals(7.5D, observer.positionX());
+      }
+    }
+    try (PlayerTeleportReader reader = PacketReaders.readerOf(packet)) {
+      assertEquals(7.5D, reader.positionX());
+    }
+  }
+
   @Test(testCode = "partial-player-movement", severity = Severity.ERROR)
   public void testPartialMovementDoesNotInventMissingComponents() throws ReflectiveOperationException {
     if (MinecraftVersions.VER26_2.below()) return;

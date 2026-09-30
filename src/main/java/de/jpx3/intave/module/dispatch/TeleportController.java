@@ -11,6 +11,7 @@
 
 package de.jpx3.intave.module.dispatch;
 
+import ac.intave.samples.event.TeleportEvent;
 import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.events.PacketContainer;
@@ -26,6 +27,9 @@ import de.jpx3.intave.module.Modules;
 import de.jpx3.intave.module.linker.packet.ListenerPriority;
 import de.jpx3.intave.module.linker.packet.PacketEventSubscriber;
 import de.jpx3.intave.module.linker.packet.PacketSubscription;
+import de.jpx3.intave.module.nayoro.SampleTypes;
+import de.jpx3.intave.packet.reader.EntityVelocityReader;
+import de.jpx3.intave.packet.reader.ExplosionReader;
 import de.jpx3.intave.packet.reader.PacketReaders;
 import de.jpx3.intave.packet.PacketSender;
 import de.jpx3.intave.packet.Relative;
@@ -61,15 +65,26 @@ public final class TeleportController implements PacketEventSubscriber {
 	private boolean teleportFeedbackSyncEnforcement = true;
 	private final BiConsumer<User, Runnable> scheduler;
 	private final BiConsumer<User, Teleport> transport;
+	private final BiConsumer<User, TeleportEvent> eventEmitter;
 
 	public TeleportController() {
 		this.scheduler = Synchronizer::synchronize;
 		this.transport = this::transmitTeleport;
+		this.eventEmitter = (user, event) -> Modules.nayoro().emit(user, event);
 	}
 
 	TeleportController(BiConsumer<User, Runnable> scheduler, BiConsumer<User, Teleport> transport) {
+		this(scheduler, transport, (user, event) -> {});
+	}
+
+	TeleportController(
+		BiConsumer<User, Runnable> scheduler,
+		BiConsumer<User, Teleport> transport,
+		BiConsumer<User, TeleportEvent> eventEmitter
+	) {
 		this.scheduler = scheduler;
 		this.transport = transport;
+		this.eventEmitter = eventEmitter;
 	}
 
 	public void setup() {
@@ -123,13 +138,6 @@ public final class TeleportController implements PacketEventSubscriber {
 				user.sendMessage(IntavePlugin.prefix() + "You were instructed to teleport to " +
 					teleport.change().position() + " as " + ChatColor.RED + " it was server-requested");
 			}
-
-    /*
-      We flush the reader here, since the doubleTickFeedback code below performs a
-      copy of our packet to sandwich it between two feedback packets,
-      we need this write operation before.
-     */
-//		reader.flush();
 
 			if (teleport.additiveMotionPacket() == null && protocol.legacyTeleportRelativeMotionBehavior()) {
 				teleport.copyRelPosFlagsToRelDeltaFlags();
@@ -267,6 +275,7 @@ public final class TeleportController implements PacketEventSubscriber {
 		}
 
 		ReentrantLock teleportLock = movementData.teleportLock;
+		TeleportEvent event = null;
 		try {
 			teleportLock.lock();
 			Deque<Teleport> teleports = movementData.pendingTeleports.get();
@@ -317,7 +326,12 @@ public final class TeleportController implements PacketEventSubscriber {
 				if (user.receives(MessageChannel.DEBUG_TELEPORT)) {
 					user.sendMessage(IntavePlugin.prefix() + "Movement matched the teleport request to " + expected);
 				}
-				return true;
+				Integer acceptedTeleportId = first.id().isPresent() ? first.id().getAsInt() : null;
+				event = new TeleportEvent(
+					SampleTypes.position(expected.position()),
+					SampleTypes.rotation(expected.rotation()),
+					acceptedTeleportId
+				);
 			} else {
 				if (user.receives(MessageChannel.DEBUG_TELEPORT)) {
 					user.sendMessage(IntavePlugin.prefix() + "Movement did not match the teleport request (delta-position: " + positionOffset + ", delta-rotation: " + rotationOffset + ") to " + expected);
@@ -326,7 +340,11 @@ public final class TeleportController implements PacketEventSubscriber {
 		} finally {
 			teleportLock.unlock();
 		}
-		return false;
+		if (event == null) {
+			return false;
+		}
+		eventEmitter.accept(user, event);
+		return true;
 	}
 
 	public void onResendTimeout(User user) {
@@ -403,17 +421,38 @@ public final class TeleportController implements PacketEventSubscriber {
 
 	private void transmitTeleport(User user, Teleport teleport) {
 		PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.POSITION);
-		PacketContainer companion;
 		try (PlayerTeleportReader reader = PacketReaders.readerOf(packet)) {
 			reader.writeTeleport(teleport);
-			companion = reader.motionCompanionPacket(user.player());
 		}
+		PacketContainer companion = motionCompanionPacket(user.player(), teleport);
 		user.tickFeedback(() -> beforeTeleportTransactionReceive(user, teleport));
 		PacketSender.sendServerPacketWithoutEvent(user.player(), packet);
 		if (companion != null) {
 			PacketSender.sendServerPacketWithoutEvent(user.player(), companion);
 		}
 		user.tickFeedback(() -> afterTeleportTransactionReceive(user, teleport));
+	}
+
+	private PacketContainer motionCompanionPacket(Player player, Teleport teleport) {
+		Boolean additive = teleport.additiveMotionPacket();
+		if (MinecraftVersions.VER1_21_3.atOrAbove() || additive == null) {
+			return null;
+		}
+		PacketContainer companion = ProtocolLibrary.getProtocolManager().createPacket(additive ?
+			PacketType.Play.Server.EXPLOSION : PacketType.Play.Server.ENTITY_VELOCITY
+		);
+		if (additive) {
+			try (ExplosionReader reader = PacketReaders.readerOf(companion)) {
+				reader.setSilentDefaults();
+				reader.setMotion(teleport.change().motion());
+			}
+		} else {
+			try (EntityVelocityReader reader = PacketReaders.readerOf(companion)) {
+				reader.setEntityId(player.getEntityId());
+				reader.setMotion(teleport.change().motion());
+			}
+		}
+		return companion;
 	}
 
 	void beforeTeleportTransactionReceive(User user, Teleport teleport) {

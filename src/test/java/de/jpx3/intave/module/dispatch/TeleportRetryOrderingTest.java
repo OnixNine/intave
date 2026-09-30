@@ -1,5 +1,6 @@
 package de.jpx3.intave.module.dispatch;
 
+import ac.intave.samples.event.TeleportEvent;
 import de.jpx3.intave.adapter.MinecraftVersion;
 import de.jpx3.intave.adapter.MinecraftVersions;
 import de.jpx3.intave.packet.Relative;
@@ -123,6 +124,43 @@ class TeleportRetryOrderingTest {
     assertTrue(confirm(retry));
     assertEquals(74, movement.verifiedLastPosition().getY());
     assertEquals(0.5, movement.mutableBaseMotionCopy().motionY());
+  }
+
+  @Test void emitsAbsoluteTeleportOnlyAfterFeedbackAcceptAndMatchingMovement() {
+    List<Teleport> transmitted = new ArrayList<>();
+    List<TeleportEvent> emitted = new ArrayList<>();
+    TeleportController emittingController = new TeleportController(
+      (u, task) -> task.run(),
+      (u, teleport) -> transmitted.add(teleport),
+      (u, event) -> emitted.add(event)
+    );
+
+    emittingController.teleport(user, change(10, 0), EnumSet.of(Relative.Y));
+    Teleport teleport = transmitted.get(0);
+    Position responsePosition = new Position(0, 74, 0);
+
+    assertFalse(emittingController.confirmTeleport(user, responsePosition, Rotation.zero()));
+    assertTrue(emitted.isEmpty());
+
+    emittingController.beforeTeleportTransactionReceive(user, teleport);
+    movement.sentTeleportIdBefore = true;
+    movement.lastTeleportAcceptId = teleport.id().getAsInt() + 1;
+    assertFalse(emittingController.confirmTeleport(user, responsePosition, Rotation.zero()));
+    assertTrue(emitted.isEmpty());
+
+    movement.lastTeleportAcceptId = teleport.id().getAsInt();
+    assertFalse(emittingController.confirmTeleport(user, new Position(0, 75, 0), Rotation.zero()));
+    assertTrue(emitted.isEmpty());
+
+    assertTrue(emittingController.confirmTeleport(user, responsePosition, Rotation.zero()));
+    assertEquals(1, emitted.size());
+    TeleportEvent event = emitted.get(0);
+    assertEquals(new ac.intave.samples.share.Position(0, 74, 0), event.position());
+    assertEquals(ac.intave.samples.share.Rotation.ZERO, event.rotation());
+    assertEquals(teleport.id().getAsInt(), event.teleportId());
+
+    assertFalse(emittingController.confirmTeleport(user, responsePosition, Rotation.zero()));
+    assertEquals(1, emitted.size());
   }
 
   @Test void minecraft263CombinedAcceptCompletesTeleportWithoutAnotherMovementResponse() {

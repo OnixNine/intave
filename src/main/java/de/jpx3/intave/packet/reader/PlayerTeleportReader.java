@@ -1,26 +1,18 @@
 package de.jpx3.intave.packet.reader;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.reflect.StructureModifier;
 import de.jpx3.intave.adapter.MinecraftVersions;
 import de.jpx3.intave.packet.Relative;
 import de.jpx3.intave.packet.converter.PosMoveRotConverter;
 import de.jpx3.intave.share.*;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
 
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.EnumSet;
 
+/** Object getters return snapshots; changes must be written through the setters. */
 public final class PlayerTeleportReader extends AbstractPacketReader {
   private final static boolean DIRECT_PMR_USED = MinecraftVersions.VER1_21_3.atOrAbove();
-  private PositionMoveRotation positionMoveRotation;
-  private Motion companionMotion;
-  private Boolean additiveCompanionMotion;
-  private boolean mod;
 
   public OptionalInt teleportId() {
     StructureModifier<Integer> integers = packet().getIntegers();
@@ -46,8 +38,9 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setPositionX(double x) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().position().setX(x);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.position().setX(x);
+      setPositionMoveRotation(value);
     } else {
       packet().getDoubles().write(0, x);
     }
@@ -62,8 +55,9 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setPositionY(double y) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().position().setY(y);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.position().setY(y);
+      setPositionMoveRotation(value);
     } else {
       packet().getDoubles().write(1, y);
     }
@@ -78,15 +72,15 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setPositionZ(double z) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().position().setZ(z);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.position().setZ(z);
+      setPositionMoveRotation(value);
     } else {
       packet().getDoubles().write(2, z);
     }
   }
 
   public Position position() {
-    mod = true;
     return internalPosMoveRotation().position();
   }
 
@@ -99,8 +93,9 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setYaw(float yaw) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().rotation().setYaw(yaw);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.rotation().setYaw(yaw);
+      setPositionMoveRotation(value);
     } else {
       packet().getFloat().write(0, yaw);
     }
@@ -115,15 +110,15 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setPitch(float pitch) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().rotation().setPitch(pitch);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.rotation().setPitch(pitch);
+      setPositionMoveRotation(value);
     } else {
       packet().getFloat().write(1, pitch);
     }
   }
 
   public Rotation rotation() {
-    mod = true;
     return internalPosMoveRotation().rotation();
   }
 
@@ -136,8 +131,9 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setMotionX(double x) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().motion().setMotionX(x);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.motion().setMotionX(x);
+      setPositionMoveRotation(value);
     }
   }
 
@@ -150,8 +146,9 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setMotionY(double y) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().motion().setMotionY(y);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.motion().setMotionY(y);
+      setPositionMoveRotation(value);
     }
   }
 
@@ -164,94 +161,61 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
 
   public void setMotionZ(double z) {
     if (DIRECT_PMR_USED) {
-      internalPosMoveRotation().motion().setMotionZ(z);
-      mod = true;
+      PositionMoveRotation value = internalPosMoveRotation();
+      value.motion().setMotionZ(z);
+      setPositionMoveRotation(value);
     }
   }
-
-  private final static Motion UNUSED_MOTION = new Motion(0, 0, 0);
 
   public Motion motion() {
     if (DIRECT_PMR_USED) {
-      mod = true;
       return internalPosMoveRotation().motion();
     }
-    return UNUSED_MOTION;
+    return Motion.newEmpty();
   }
 
   public PositionMoveRotation positionMoveRotation() {
-    mod = true;
     return internalPosMoveRotation();
   }
 
   private PositionMoveRotation internalPosMoveRotation() {
-    if (positionMoveRotation == null) {
-      if (DIRECT_PMR_USED) {
-        positionMoveRotation = packet().getModifier().withType(
-          PosMoveRotConverter.nativePositionMoveRotClass,
-          PosMoveRotConverter.INSTANCE
-        ).read(0);
-      } else {
-        positionMoveRotation = new PositionMoveRotation(
-          Position.mutableOf(
-            packet().getDoubles().read(0),
-            packet().getDoubles().read(1),
-            packet().getDoubles().read(2)
-          ),
-          new Motion(0, 0, 0),
-          new Rotation(
-            packet().getFloat().read(0),
-            packet().getFloat().read(1)
-          )
-        );
-      }
+    if (DIRECT_PMR_USED) {
+      return packet().getModifier().withType(
+        PosMoveRotConverter.nativePositionMoveRotClass,
+        PosMoveRotConverter.INSTANCE
+      ).read(0);
     }
-    return positionMoveRotation;
+    StructureModifier<Double> doubles = packet().getDoubles();
+    StructureModifier<Float> floats = packet().getFloat();
+    return new PositionMoveRotation(
+      Position.mutableOf(
+        doubles.read(0),
+        doubles.read(1),
+        doubles.read(2)
+      ),
+      Motion.newEmpty(),
+      new Rotation(
+        floats.read(0),
+        floats.read(1)
+      )
+    );
   }
 
-  private void writePositionMoveRotation(PositionMoveRotation posMoveRot) {
+  public void setPositionMoveRotation(PositionMoveRotation posMoveRot) {
     if (DIRECT_PMR_USED) {
       packet().getModifier().withType(
         PosMoveRotConverter.nativePositionMoveRotClass,
         PosMoveRotConverter.INSTANCE
       ).write(0, posMoveRot);
     } else {
-      packet().getDoubles().write(0, posMoveRot.position().getX());
-      packet().getDoubles().write(1, posMoveRot.position().getY());
-      packet().getDoubles().write(2, posMoveRot.position().getZ());
-      packet().getFloat().write(0, posMoveRot.rotation().yaw());
-      packet().getFloat().write(1, posMoveRot.rotation().pitch());
+      StructureModifier<Double> doubles = packet().getDoubles();
+      StructureModifier<Float> floats = packet().getFloat();
+      doubles.write(0, posMoveRot.position().getX());
+      doubles.write(1, posMoveRot.position().getY());
+      doubles.write(2, posMoveRot.position().getZ());
+      floats.write(0, posMoveRot.rotation().yaw());
+      floats.write(1, posMoveRot.rotation().pitch());
     }
-  }
-
-  public void setPositionMoveRotation(PositionMoveRotation posMoveRot) {
-    writePositionMoveRotation(posMoveRot);
-    positionMoveRotation = posMoveRot;
-    mod = true;
-  }
-
-  /*
-    Flushing is usually not required, but some very niece packet readers do
-    require flushing before the packet is accessed.
-    If you want to access a packet modified with a packet-reader, make sure
-    to add a call to this method before.
-   */
-  @Override
-  public void flush() {
-    if (mod) {
-      writePositionMoveRotation(positionMoveRotation);
-    }
-    mod = false;
-    super.flush();
-  }
-
-  @Override
-  public void release() {
-    flush();
-    positionMoveRotation = null;
-    companionMotion = null;
-    additiveCompanionMotion = null;
-    super.release();
   }
 
   // if it is just adding motion (all relative and motions are the only thing with chg),
@@ -268,42 +232,11 @@ public final class PlayerTeleportReader extends AbstractPacketReader {
     return new Teleport(uniqueId, teleportId(), positionMoveRotation(), flags());
   }
 
-  public PacketContainer motionCompanionPacket(Entity entity) {
-    if (MinecraftVersions.VER1_21_3.atOrAbove()) {
-      return null;
-    }
-    Motion legacy = companionMotion;
-    Boolean additive = additiveCompanionMotion;
-    PacketContainer companion = null;
-    if (additive != null) {
-      companion = ProtocolLibrary.getProtocolManager().createPacket(additive ?
-        PacketType.Play.Server.EXPLOSION :
-        PacketType.Play.Server.ENTITY_VELOCITY
-      );
-      if (additive) {
-        try (ExplosionReader reader = PacketReaders.readerOf(companion)) {
-          reader.setSilentDefaults();
-          reader.setMotion(legacy);
-        }
-      } else {
-        try (EntityVelocityReader reader = PacketReaders.readerOf(companion)) {
-          reader.setEntityId(entity.getEntityId());
-          reader.setMotion(legacy);
-        }
-      }
-    }
-    return companion;
-  }
-
   public void writeTeleport(Teleport teleport) {
 		if (teleport == null) {
 			throw new IllegalArgumentException("teleport must not be null");
 		}
-    additiveCompanionMotion = teleport.additiveMotionPacket();
-    PositionMoveRotation change = teleport.change();
-    Motion motion = change.motion();
-    companionMotion = additiveCompanionMotion == null ? null : motion.copy();
-		setPositionMoveRotation(change);
+		setPositionMoveRotation(teleport.change());
 		setFlags(teleport.relativeSet());
     if (teleport.id().isPresent()) {
 			setTeleportId(teleport.id().getAsInt());
