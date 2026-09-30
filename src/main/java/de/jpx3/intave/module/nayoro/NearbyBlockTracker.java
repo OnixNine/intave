@@ -17,105 +17,126 @@ import de.jpx3.intave.block.cache.BlockCache;
 import de.jpx3.intave.share.BlockPosition;
 import de.jpx3.intave.share.BlockState;
 import de.jpx3.intave.share.BoundingBox;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.LongIterator;
+import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import org.bukkit.Material;
+import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static de.jpx3.intave.share.ClientMath.floor;
 
 final class NearbyBlockTracker {
-  private static final double NEARBY_BLOCK_RADIUS = 3.0D;
-  private static final int MAX_RECORDED_BLOCKS = 10_000;
+	private static final double NEARBY_BLOCK_RADIUS = 3.0D;
+	private static final double LOOK_AHEAD_DECAY = 0.8D;
+	private static final double MAX_LOOK_AHEAD = 4.0D;
+	private static final double MIN_LOOK_AHEAD = 0.01D;
+	private static final int MAX_RECORDED_BLOCKS = 10_000;
 
-  private final Long2ObjectMap<RecordedBlock> recordedBlocks =
-    new Long2ObjectOpenHashMap<>();
+	// Insertion order gives constant-time eviction without scanning the recorded world.
+	private final Long2ObjectLinkedOpenHashMap<RecordedBlock> recordedBlocks =
+		new Long2ObjectLinkedOpenHashMap<>();
+	private double lookAheadDistance;
 
-  public List<BlockUpdate> dirtyNearbyBlocks(
-    BlockCache blockCache,
-    BoundingBox playerBoundingBox
-  ) {
-    BoundingBox region = playerBoundingBox.grow(NEARBY_BLOCK_RADIUS);
-    int minX = floor(region.minX);
-    int minY = floor(region.minY);
-    int minZ = floor(region.minZ);
-    int maxX = floor(region.maxX);
-    int maxY = floor(region.maxY);
-    int maxZ = floor(region.maxZ);
-    List<BlockUpdate> updates = new ArrayList<>();
-    for (int x = minX; x <= maxX; x++) {
-      for (int y = minY; y <= maxY; y++) {
-        for (int z = minZ; z <= maxZ; z++) {
-          BlockState state = blockCache.stateAt(x, y, z);
-          long positionKey = BlockPosition.toLong(x, y, z);
-          RecordedBlock previous = recordedBlocks.get(positionKey);
-          if (state.type() == Material.AIR) {
-            if (previous != null) {
-              recordedBlocks.remove(positionKey);
-              updates.add(update(x, y, z, Block.AIR));
-            }
-            continue;
-          }
-          if (previous != null && previous.state == state) {
-            continue;
-          }
+	public List<BlockUpdate> dirtyNearbyBlocks(
+		BlockCache blockCache,
+		BoundingBox playerBoundingBox,
+		Vector lookDirection,
+		double movementDistance
+	) {
+		// Accumulate recent travel and let the extra reach fade when movement stops.
+		double travelled = Double.isFinite(movementDistance) ? Math.max(0.0D, movementDistance) : 0.0D;
+		lookAheadDistance = Math.min(MAX_LOOK_AHEAD, lookAheadDistance * LOOK_AHEAD_DECAY + travelled);
+		if (lookAheadDistance < MIN_LOOK_AHEAD) {
+			lookAheadDistance = 0.0D;
+		}
+		double extendX = 0.0D;
+		double extendY = 0.0D;
+		double extendZ = 0.0D;
+		// MovementMetadata provides a cached unit look vector; never mutate it here.
+		if (lookAheadDistance > 0.0D
+			&& Double.isFinite(lookDirection.getX())
+			&& Double.isFinite(lookDirection.getY())
+			&& Double.isFinite(lookDirection.getZ())
+		) {
+			extendX = lookDirection.getX() * lookAheadDistance;
+			extendY = lookDirection.getY() * lookAheadDistance;
+			extendZ = lookDirection.getZ() * lookAheadDistance;
+		}
+		int minX = floor(playerBoundingBox.minX - NEARBY_BLOCK_RADIUS + Math.min(0.0D, extendX));
+		int minY = floor(playerBoundingBox.minY - NEARBY_BLOCK_RADIUS + Math.min(0.0D, extendY));
+		int minZ = floor(playerBoundingBox.minZ - NEARBY_BLOCK_RADIUS + Math.min(0.0D, extendZ));
+		int maxX = floor(playerBoundingBox.maxX + NEARBY_BLOCK_RADIUS + Math.max(0.0D, extendX));
+		int maxY = floor(playerBoundingBox.maxY + NEARBY_BLOCK_RADIUS + Math.max(0.0D, extendY));
+		int maxZ = floor(playerBoundingBox.maxZ + NEARBY_BLOCK_RADIUS + Math.max(0.0D, extendZ));
+		List<BlockUpdate> updates = Collections.emptyList();
+		for (int x = minX; x <= maxX; x++) {
+			for (int y = minY; y <= maxY; y++) {
+				for (int z = minZ; z <= maxZ; z++) {
+					updates = sampleBlock(blockCache, x, y, z, updates);
+				}
+			}
+		}
+		return updates;
+	}
 
-          Block current = SampleTypes.block(state, x, y, z);
-          if (previous != null && current.equals(previous.block)) {
-            // Cache refreshes may replace BlockState instances without changing their
-            // serialized form. Remember the new identity for subsequent fast-path scans.
-            recordedBlocks.put(positionKey, new RecordedBlock(state, previous.block));
-            continue;
-          }
-          recordedBlocks.put(positionKey, new RecordedBlock(state, current));
-          updates.add(update(x, y, z, current));
-        }
-      }
-    }
-    pruneRecordedBlocks();
-    return updates;
-  }
+	private List<BlockUpdate> sampleBlock(
+		BlockCache blockCache,
+		int x,
+		int y,
+		int z,
+		List<BlockUpdate> updates
+	) {
+		long positionKey = BlockPosition.toLong(x, y, z);
+		BlockState state = blockCache.stateAt(x, y, z);
+		RecordedBlock previous = recordedBlocks.get(positionKey);
+		if (state.type() == Material.AIR) {
+			if (previous != null) {
+				recordedBlocks.remove(positionKey);
+				return addUpdate(updates, x, y, z, Block.AIR);
+			}
+			return updates;
+		}
+		if (previous != null && previous.state == state) {
+			return updates;
+		}
 
-  private void pruneRecordedBlocks() {
-    int remaining = recordedBlocks.size();
-    if (remaining <= MAX_RECORDED_BLOCKS) {
-      return;
-    }
+		Block current = SampleTypes.block(state, x, y, z);
+		if (previous != null && current.equals(previous.block)) {
+			// Cache refreshes may replace BlockState instances without changing their
+			// serialized form. Remember the new identity for subsequent fast-path scans.
+			previous.state = state;
+			return updates;
+		}
+		if (previous == null && recordedBlocks.size() >= MAX_RECORDED_BLOCKS) {
+			recordedBlocks.removeFirst();
+		}
+		recordedBlocks.put(positionKey, new RecordedBlock(state, current));
+		return addUpdate(updates, x, y, z, current);
+	}
 
-    int toRemove = remaining / 2;
-    LongIterator keys = recordedBlocks.keySet().iterator();
-    ThreadLocalRandom random = ThreadLocalRandom.current();
-    while (keys.hasNext() && toRemove > 0) {
-      keys.nextLong();
-      if (random.nextInt(remaining) < toRemove) {
-        keys.remove();
-        toRemove--;
-      }
-      remaining--;
-    }
-  }
+	int recordedBlockCount() {
+		return recordedBlocks.size();
+	}
 
-  int recordedBlockCount() {
-    return recordedBlocks.size();
-  }
+	private static List<BlockUpdate> addUpdate(List<BlockUpdate> updates, int x, int y, int z, Block block) {
+		if (updates.isEmpty()) {
+			updates = new ArrayList<>();
+		}
+		updates.add(new BlockUpdate(
+			new ac.intave.samples.share.BlockPosition(x, y, z), block
+		));
+		return updates;
+	}
 
-  private static BlockUpdate update(int x, int y, int z, Block block) {
-    return new BlockUpdate(
-      new ac.intave.samples.share.BlockPosition(x, y, z), block
-    );
-  }
+	private static final class RecordedBlock {
+		private BlockState state;
+		private final Block block;
 
-  private static final class RecordedBlock {
-    private final BlockState state;
-    private final Block block;
-
-    private RecordedBlock(BlockState state, Block block) {
-      this.state = state;
-      this.block = block;
-    }
-  }
+		private RecordedBlock(BlockState state, Block block) {
+			this.state = state;
+			this.block = block;
+		}
+	}
 }

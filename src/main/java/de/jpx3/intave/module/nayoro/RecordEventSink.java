@@ -19,6 +19,7 @@ import ac.intave.samples.share.Classifier;
 import de.jpx3.intave.adapter.MinecraftVersion;
 import de.jpx3.intave.module.nayoro.stream.PeriodicFlushOutputStream;
 import de.jpx3.intave.module.tracker.entity.Entity;
+import de.jpx3.intave.user.meta.MovementMetadata;
 import de.jpx3.intave.version.ProtocolVersionConverter;
 
 import java.io.IOException;
@@ -121,8 +122,13 @@ final class RecordEventSink extends EventSink {
   @Override
   public synchronized void visit(PlayerMoveEvent event) {
     environment.mainPlayer().applyIfUserPresent(user -> {
+      MovementMetadata movement = user.meta().movement();
+      double dx = movement.positionX() - movement.lastPositionX();
+      double dy = movement.positionY() - movement.lastPositionY();
+      double dz = movement.positionZ() - movement.lastPositionZ();
       List<BlockUpdate> updates = nearbyBlocks.dirtyNearbyBlocks(
-        user.blockCache(), user.meta().movement().boundingBox()
+        user.blockCache(), movement.boundingBox(), movement.lookVector(),
+        Math.sqrt(dx * dx + dy * dy + dz * dz)
       );
       for (BlockUpdatesEvent updateEvent : chunkBlockUpdates(updates)) {
         visitAny(updateEvent);
