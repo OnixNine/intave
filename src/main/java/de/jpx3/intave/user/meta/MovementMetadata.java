@@ -892,7 +892,6 @@ public final class MovementMetadata implements SimulationEnvironment {
     legacyVehicleKeyInput = false;
     suspiciousMovement = false;
     ignoredAttackReduce = false;
-    isTeleportConfirmationPacket = false;
     dropPostTickMotionProcessing = false;
     movementWithheldForTeleport = false;
     physicsUnpredictableVelocityExpected = false;
@@ -942,7 +941,9 @@ public final class MovementMetadata implements SimulationEnvironment {
     tick(IN_WATER, inWater());
     tick(SNEAKING, isSneaking());
     tick(SPRINTING, isSprinting());
+    // Cleared only after ticking, so a confirming movement packet does not age TELEPORT
     tick(TELEPORT, isTeleportConfirmationPacket);
+    isTeleportConfirmationPacket = false;
     tick(ELYTRA_FLYING, gliding);
     tick(INVENTORY_OPEN, user.meta().inventory().inventoryOpen());
 

@@ -23,6 +23,7 @@ import de.jpx3.intave.adapter.MinecraftVersions;
 import de.jpx3.intave.annotate.DispatchTarget;
 import de.jpx3.intave.share.MovementCorrection;
 import de.jpx3.intave.executor.Synchronizer;
+import de.jpx3.intave.math.MathHelper;
 import de.jpx3.intave.module.Modules;
 import de.jpx3.intave.module.linker.packet.ListenerPriority;
 import de.jpx3.intave.module.linker.packet.PacketEventSubscriber;
@@ -57,6 +58,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 
+import static de.jpx3.intave.check.movement.physics.environment.MoveMetric.LONG_TELEPORT;
+import static de.jpx3.intave.check.movement.physics.environment.MoveMetric.TELEPORT;
 import static de.jpx3.intave.module.linker.packet.PacketId.Client.TELEPORT_ACCEPT;
 import static de.jpx3.intave.module.linker.packet.PacketId.Server.POSITION;
 
@@ -174,6 +177,10 @@ public final class TeleportController implements PacketEventSubscriber {
 	}
 
 	void receiveTeleportAccept(User user, int teleportId, PositionAndRotation acceptedState) {
+		// Combined acknowledgements bypass the movement packet's finite-value check.
+		if (acceptedState != null && !acceptedState.isFinite()) {
+			return;
+		}
 		MovementMetadata movementData = user.meta().movement();
 		movementData.lastTeleportAcceptId = teleportId;
 		movementData.sentTeleportIdBefore = true;
@@ -298,23 +305,34 @@ public final class TeleportController implements PacketEventSubscriber {
 
 			int teleportId = movementData.lastTeleportAcceptId;
 			Position lastPosition = movementData.verifiedLastPosition();
-			Rotation lastRotation = movementData.lastRotation();
+			Rotation currentRotation = movementData.rotation();
 
 			PositionMoveRotation expected = first.expectedPositionMoveRotation(
-				lastPosition, lastRotation, movementData.mutableBaseMotionCopy()
+				lastPosition, currentRotation, movementData.mutableBaseMotionCopy()
 			);
 
 			double positionOffset = expected.position().distanceTo(sentPosition);
 			float rotationOffset = expected.rotation().distanceTo(sentRotation);
 
 			if (first.matchesId(teleportId) && first.matches(
-				lastPosition, lastRotation,
+				lastPosition, currentRotation,
 				sentPosition, sentRotation,
 				0.001, Float.NaN
 			)) {
 				teleports.pollFirst();
 				first.accept();
 				expected.applyTo(movementData);
+				// Rotation is not validated, so trust the client's view: relative rotations are
+				// resolved against its current view, which we may not know exactly. The teleport
+				// also starts a new rotation baseline, as it is not a turn made by the player.
+				movementData.setRotation(sentRotation);
+				movementData.setLastRotation(sentRotation);
+				movementData.activeTick(TELEPORT);
+				if (MathHelper.resolveHorizontalDistance(
+					lastPosition.getX(), lastPosition.getZ(), expected.position().getX(), expected.position().getZ()
+				) > 20) {
+					movementData.activeTick(LONG_TELEPORT);
+				}
 				if (first.simulatedOnGround() != null) {
 					movementData.onGround = first.simulatedOnGround();
 					movementData.setLastOnGround(first.simulatedOnGround());
@@ -363,7 +381,7 @@ public final class TeleportController implements PacketEventSubscriber {
 			// Resolve the outstanding chain in send order. Replaying an older relative
 			// request can apply its offset twice or undo a newer server destination.
 			PositionMoveRotation target = new PositionMoveRotation(
-				movementData.verifiedLastPosition(), movementData.mutableBaseMotionCopy(), movementData.lastRotation());
+				movementData.verifiedLastPosition(), movementData.mutableBaseMotionCopy(), movementData.rotation());
 			Boolean onGround = null;
 			for (Teleport pending : teleports) {
 				target = target.merge(pending.change(), pending.relativeSet());

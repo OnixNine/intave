@@ -96,11 +96,11 @@ public final class RotationSnapHeuristic extends ClassicHeuristic<RotationSnapHe
     return Math.toDegrees(Math.atan2(strafe, forward)) - 90;
   }
 
-  static double computeYawMotion(float lastRotationYaw, float rotationYaw) {
+  public static double computeYawMotion(float lastRotationYaw, float rotationYaw) {
     return Math.abs(lastRotationYaw - rotationYaw);
   }
 
-  static boolean isRotationSnapDetected(
+  public static boolean isRotationSnapDetected(
     double previousYawMotion, double lastYawMotion, double currentYawMotion,
     boolean recentSwingOrAttack, int rotationPacketCounter, int ticksPastTeleport
   ) {
