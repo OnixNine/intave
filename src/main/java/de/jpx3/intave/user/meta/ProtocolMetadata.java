@@ -274,6 +274,10 @@ public final class ProtocolMetadata {
     return protocolVersion >= VER_1_9;
   }
 
+  public boolean hasAttackCooldown() {
+    return protocolVersion >= VER_1_9;
+  }
+
   public boolean trailsAndTailsUpdate() {
     return protocolVersion >= VER_1_20_1;
   }

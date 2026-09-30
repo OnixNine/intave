@@ -19,6 +19,8 @@ import de.jpx3.intave.block.fluid.FluidFlow;
 import de.jpx3.intave.check.movement.physics.environment.MockSimulationEnvironment;
 import de.jpx3.intave.check.movement.physics.environment.SimulationEnvironment;
 import de.jpx3.intave.check.movement.physics.simulator.Simulators;
+import de.jpx3.intave.check.movement.physics.update.Reduce;
+import de.jpx3.intave.check.movement.physics.update.CausalConstraint;
 import de.jpx3.intave.share.BlockState;
 import de.jpx3.intave.share.BoundingBox;
 import de.jpx3.intave.share.Motion;
@@ -47,6 +49,38 @@ final class BaseSimulatorAquaticsTest {
 	@BeforeEach
 	void setUp() {
 		MinecraftVersion.setCurrent(MinecraftVersions.VER1_21_4);
+	}
+
+	@Test
+	void preTickRefreshesSwimmingAfterWaterStateWithoutChangingSiblingBranches() {
+		TestContext context = context(VER_1_21_4, false, Motion.newEmpty(), new MockFullBlockStaticPlane());
+		context.environment.setInWater(true);
+		context.environment.setSwimming(true);
+		context.environment.setLastSprinting(true);
+		SimulationEnvironment branch = context.environment.mutableView();
+
+		Simulators.PLAYER.simulatePreTick(context.user, Motion.newEmpty(), branch);
+
+		assertFalse(branch.inWater());
+		assertFalse(branch.isSwimming());
+		assertTrue(context.environment.inWater());
+		assertTrue(context.environment.isSwimming());
+	}
+
+	@Test
+	void attackReductionIsClampedInPreTickAndLeavesVerticalMotionUnscaled() {
+		TestContext context = context(VER_1_21_4, false, Motion.newEmpty(), new MockFullBlockStaticPlane());
+		context.environment.setBaseMotion(0.004, 0.2, -0.004);
+		SimulationEnvironment branch = context.environment.mutableView();
+		new Reduce(false,
+			CausalConstraint.openEnded(0, 1)).applyTo(branch);
+
+		Motion motion = Simulators.PLAYER.simulatePreTick(context.user, branch.mutableBaseMotionCopy(), branch);
+
+		assertEquals(0.0, motion.motionX);
+		assertEquals(0.2, motion.motionY);
+		assertEquals(0.0, motion.motionZ);
+		assertEquals(new Motion(0.004, 0.2, -0.004), context.environment.mutableBaseMotionCopy());
 	}
 
 	@Test

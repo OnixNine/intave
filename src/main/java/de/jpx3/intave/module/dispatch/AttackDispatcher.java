@@ -19,6 +19,8 @@ import com.comphenix.protocol.wrappers.WrappedAttribute;
 import com.google.common.collect.Lists;
 import de.jpx3.intave.adapter.MinecraftVersions;
 import de.jpx3.intave.check.combat.Heuristics;
+import de.jpx3.intave.check.movement.physics.environment.AttackCooldown;
+import de.jpx3.intave.check.movement.physics.update.Reduce;
 import de.jpx3.intave.executor.Synchronizer;
 import de.jpx3.intave.module.Module;
 import de.jpx3.intave.module.Modules;
@@ -54,6 +56,11 @@ import java.util.function.Consumer;
 import static de.jpx3.intave.check.movement.physics.environment.MoveMetric.ATTACK_REDUCE;
 import static de.jpx3.intave.check.movement.physics.environment.MoveMetric.ENTITY_USE;
 import static de.jpx3.intave.module.linker.packet.PacketId.Client.ATTACK_ENTITY;
+import static de.jpx3.intave.module.linker.packet.PacketId.Client.CLIENT_TICK_END;
+import static de.jpx3.intave.module.linker.packet.PacketId.Client.FLYING;
+import static de.jpx3.intave.module.linker.packet.PacketId.Client.LOOK;
+import static de.jpx3.intave.module.linker.packet.PacketId.Client.POSITION;
+import static de.jpx3.intave.module.linker.packet.PacketId.Client.POSITION_LOOK;
 import static de.jpx3.intave.module.linker.packet.PacketId.Client.USE_ENTITY;
 import static de.jpx3.intave.module.linker.packet.PacketId.Server.RESPAWN;
 import static de.jpx3.intave.module.linker.packet.PacketId.Server.SET_SLOT;
@@ -70,6 +77,27 @@ public final class AttackDispatcher extends Module {
     COMBAT_SAMPLING = plugin.checks().searchCheck(Heuristics.class).configuration().settings().boolBy("combat-sampling", true);
     for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
       disableReducing(onlinePlayer);
+    }
+  }
+
+  @PacketSubscription(
+    priority = ListenerPriority.LOW,
+    packetsIn = {FLYING, LOOK, POSITION, POSITION_LOOK}
+  )
+  public void receiveMovementForAttackCooldown(User user) {
+    if (!user.meta().protocol().sendsClientTickEnd()) {
+      user.meta().attack().attackCooldown().tick();
+    }
+  }
+
+  @PacketSubscription(
+    priority = ListenerPriority.LOW,
+    packetsIn = CLIENT_TICK_END
+  )
+  public void receiveClientTickEndForAttackCooldown(User user) {
+    if (user.meta().protocol().sendsClientTickEnd()) {
+      user.meta().attack().attackCooldown().tick();
+      user.meta().movement().inactiveTick(ATTACK_REDUCE);
     }
   }
 
@@ -93,8 +121,18 @@ public final class AttackDispatcher extends Module {
     ConnectionMetadata connectionData = meta.connection();
     MovementMetadata movementData = meta.movement();
 
-	  int entityId = reader.entityId();
+    int entityId = reader.entityId();
     boolean isAttacking = reader.isAttackPacket();
+
+    AttackCooldown attackCooldown = attackData.attackCooldown();
+    double attackSpeed = MinecraftVersions.VER1_9_0.below()
+      ? 20.0D
+      : meta.abilities().attributeValue("generic.attackSpeed");
+    boolean definitelyCharged = !meta.protocol().hasAttackCooldown()
+      || attackCooldown.definitelyCharged(attackSpeed);
+    if (isAttacking) {
+      attackCooldown.reset();
+    }
 
 	  InventoryMetadata inventoryData = user.meta().inventory();
     ItemStack itemStack = inventoryData.heldItem();
@@ -118,13 +156,24 @@ public final class AttackDispatcher extends Module {
         attackData.attackPastTicks = 0;
       }
       attackData.setLastAttackedEntityID(entityId);
-      // Sprinting will be set to zero after the first reduce in the tick, does not apply to knockback
-      boolean limitedToOneAttack = itemKnockback == 0;
-      if (entity.isPlayer && (f > 0 || f1 > 0) && (isSprinting || itemKnockback > 0)) {
-        movementData.activeTick(ATTACK_REDUCE);
-        if (movementData.reduceTicks == 0 || !limitedToOneAttack) {
-          movementData.reduceTicks++;
-          Modules.physicsTestRecorder().recordAttackReduction(user);
+      boolean lastActiveInTick = movementData.ticks(ATTACK_REDUCE) == 0;
+      boolean forcedReduce = itemKnockback > 0
+        || isSprinting && definitelyCharged;
+      boolean unsureReduce = isSprinting
+        && meta.protocol().hasAttackCooldown()
+        && !definitelyCharged
+        && !meta.protocol().sendsClientTickEnd();
+      if (entity.isPlayer && (f > 0 || f1 > 0) && (forcedReduce || unsureReduce)) {
+        // A successful reduction disables sprinting on the client. Only item knockback can
+        // therefore produce another reduction before the next client tick.
+        if (lastActiveInTick || itemKnockback > 0) {
+          movementData.queueTickAmbiguousUpdate(Reduce.openEnded(
+            lastActiveInTick, forcedReduce, movementData
+          ));
+          movementData.activeTick(ATTACK_REDUCE);
+          Modules.physicsTestRecorder().recordAttackReduction(
+            user, lastActiveInTick, forcedReduce
+          );
         }
       }
       FakePlayer fakePlayer = attackData.fakePlayer();

@@ -960,6 +960,10 @@ public final class MovementMetadata implements SimulationEnvironment {
       RECEIVED_VELOCITY_PACKET
     );
 
+    if (!user.meta().protocol().sendsClientTickEnd()) {
+      inactiveTick(ATTACK_REDUCE);
+    }
+
     if (hasMovement || hasRotation) {
       inactiveTick(EXTERNAL_VELOCITY);
     }

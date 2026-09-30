@@ -53,7 +53,7 @@ final class PhysicsTestRecorderTest {
 		assertNull(recorder.recordingSessionOf(user));
 		// No packet or movement state may be accessed while recording is disabled.
 		recorder.on(user, null);
-		recorder.recordAttackReduction(user);
+		recorder.recordAttackReduction(user, true, true);
 		assertNull(recorder.beginVelocity(user, new Motion(1, 2, 3)));
 		recorder.completeVelocity(null);
 		assertNull(recorder.recordingSessionOf(user));
@@ -89,14 +89,14 @@ final class PhysicsTestRecorderTest {
 		insert(recording, 0);
 		PhysicsTestRecorder.VelocityCapture velocity = recorder.beginVelocity(user, new Motion(1, 2, 3));
 		assertNotNull(velocity);
-		recorder.recordAttackReduction(user);
+		recorder.recordAttackReduction(user, true, false);
 		insert(recording, 1);
 		recorder.completeVelocity(velocity);
 		insert(recording, 2);
 
 		recorder.setRecordingStatus(user, false);
 		recorder.on(user, null);
-		recorder.recordAttackReduction(user);
+		recorder.recordAttackReduction(user, false, true);
 		assertNull(recorder.beginVelocity(user, new Motion(4, 5, 6)));
 		Path file = directory.resolve("manual.ptr");
 		recorder.saveRecordingDataTo(user, file.toFile());
@@ -109,6 +109,8 @@ final class PhysicsTestRecorderTest {
 		assertEquals(2, saved.actions().size());
 		AttackReduction attack = assertInstanceOf(AttackReduction.class, saved.actions().get(0));
 		assertEquals(TickRange.betweenExclusive(1, 2), attack.tickRange());
+		assertTrue(attack.lastActiveInTick());
+		assertFalse(attack.mandatory());
 		ReceiveVelocity received = assertInstanceOf(ReceiveVelocity.class, saved.actions().get(1));
 		assertEquals(new Motion(1, 2, 3), received.motion());
 		assertEquals(TickRange.betweenExclusive(1, 3), received.tickRange());

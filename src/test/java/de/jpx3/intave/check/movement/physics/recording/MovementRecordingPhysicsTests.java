@@ -31,10 +31,12 @@ import de.jpx3.intave.check.movement.physics.simulator.Simulator;
 import de.jpx3.intave.check.movement.physics.simulator.Simulators;
 import de.jpx3.intave.check.movement.physics.update.MotionSetUpdate;
 import de.jpx3.intave.check.movement.physics.update.PistonActionUpdate;
+import de.jpx3.intave.check.movement.physics.update.Reduce;
 import de.jpx3.intave.check.movement.physics.update.ShulkerBoxActionUpdate;
 import de.jpx3.intave.module.test.record.MoveFrame;
 import de.jpx3.intave.module.test.record.MovementFrameState;
 import de.jpx3.intave.module.test.record.MovementRecording;
+import de.jpx3.intave.module.test.record.TickRange;
 import de.jpx3.intave.module.test.record.action.Action;
 import de.jpx3.intave.module.test.record.action.AttackReduction;
 import de.jpx3.intave.module.test.record.action.PistonSlimeAction;
@@ -219,6 +221,42 @@ final class MovementRecordingPhysicsTests {
 	}
 
 	@Test
+	void recordedReductionsKeepTheirTickBoundaryMarkers() {
+		MovementRecording recording = MovementRecording.create(
+			VER_1_21_2,
+			MinecraftVersions.VER1_21_4
+		);
+		preparePhysicsTestRuntime(recording);
+
+		Position position = new Position(0, 64, 0);
+		Rotation rotation = Rotation.zero();
+		World world = createReplayWorld();
+		AtomicReference<Location> currentLocation = new AtomicReference<>(
+			locationOf(world, position, rotation)
+		);
+		MovementMetadata metadata = createReplayUser(
+			recording,
+			new PlaybackBlockCacheView(recording),
+			world,
+			currentLocation
+		).meta().movement();
+		TickRange nextFrame = TickRange.betweenExclusive(0, 1);
+
+		applyActionsForTick(List.of(
+			new AttackReduction(true, true, nextFrame),
+			new AttackReduction(true, false, nextFrame)
+		), metadata, 0);
+
+		assertEquals(2, metadata.allTickAmbiguousUpdates().size());
+		Reduce first = assertInstanceOf(Reduce.class, metadata.allTickAmbiguousUpdates().get(0));
+		Reduce second = assertInstanceOf(Reduce.class, metadata.allTickAmbiguousUpdates().get(1));
+		assertTrue(first.lastActiveInTick());
+		assertTrue(second.lastActiveInTick());
+		assertTrue(first.mandatory());
+		assertFalse(second.mandatory());
+	}
+
+	@Test
 	void recordedGroundStateIsAppliedAtClientTickBoundaries() {
 		MovementRecording recording = MovementRecording.create(
 			VER_1_21_2,
@@ -375,6 +413,7 @@ final class MovementRecordingPhysicsTests {
 				metadata, frames.get(tick - 1).clientOnGround()
 			);
 			Simulator simulator = Simulators.selectFor(metadata);
+			metadata.setSimulator(simulator);
 			metadata.stepHeight = simulator.stepHeight(user);
 			metadata.treatThisFlyPacketAsMovePacket = false;
 			if (!hasMovement && (!hasPerFramePhysicalState
@@ -383,12 +422,6 @@ final class MovementRecordingPhysicsTests {
 			}
 
 			Motion previousBaseMotion = metadata.mutableBaseMotionCopy();
-			Motion preTickMotion = simulator.simulatePreTick(user, previousBaseMotion.copy(), metadata);
-			metadata.setBaseMotion(preTickMotion);
-			simulator = Simulators.selectFor(metadata);
-			metadata.setSimulator(simulator);
-			metadata.stepHeight = simulator.stepHeight(user);
-			preparePostTickMotionCandidatesForSearch(user, metadata, simulator, previousBaseMotion, preTickMotion);
 
 			SimulationEnvironment searchEnvironment = metadata.mutableView();
 			if (!hasMovement) {
@@ -755,36 +788,6 @@ final class MovementRecordingPhysicsTests {
 					? ""
 					: "  modifiers=" + entry.getValue().modifiers().size())
 			));
-	}
-
-	private static void preparePostTickMotionCandidatesForSearch(
-		User user,
-		MovementMetadata metadata,
-		Simulator simulator,
-		Motion previousBaseMotion,
-		Motion preTickMotion
-	) {
-		List<PostTickSimulation> candidates = metadata.postTickMotionCandidates();
-		if (candidates.isEmpty()) {
-			return;
-		}
-		if (candidates.size() == 1 && candidates.get(0).motion().equals(previousBaseMotion)) {
-			metadata.setPostTickMotionCandidates(
-				List.of(candidates.get(0).withMotion(preTickMotion))
-			);
-			return;
-		}
-		List<PostTickSimulation> preTickCandidates = new LinkedList<>();
-		for (PostTickSimulation candidate : candidates) {
-			preTickCandidates.add(
-				candidate.withMotion(
-					simulator.simulatePreTick(
-						user, candidate.motion(), metadata.mutableView()
-					)
-				)
-			);
-		}
-		metadata.setPostTickMotionCandidates(preTickCandidates);
 	}
 
 	private static void applyRecordedGroundBeforeTick(
@@ -1221,6 +1224,10 @@ final class MovementRecordingPhysicsTests {
 							"Invalid attack-reduction tick range: " + reduction.tickRange()
 						);
 					}
+					metadata.queueTickAmbiguousUpdate(Reduce.openEnded(
+						reduction.lastActiveInTick(), reduction.mandatory(), metadata
+					));
+					metadata.activeTick(ATTACK_REDUCE);
 					recordedAttackReductions++;
 				}
 			}

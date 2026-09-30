@@ -352,34 +352,21 @@ public final class DefaultSimulationEvaluator implements SimulationEvaluator {
       boolean pushedByWaterFlow = movement.ticksPast(WATERFLOW_PUSH) <= 20;
       double motionXTolerance;
       double motionZTolerance;
-      if (movement.ticksPast(ATTACK_REDUCE) <= 1) {
-//      double horizontalTolerance = 0.005;
-        double reducingTolerance;
-        if (movement.receivedFlyingPacketIn(4)) {
-          reducingTolerance = 0.03;
-        } else {
-          reducingTolerance = 0.015;
+      motionXTolerance = 0.0007;
+      motionZTolerance = 0.0007;
+      if (horizontalDistance > 0.0007) {
+        boolean collides = Collision.nearSolidBlock(user, movement.boundingBox().growHorizontally(0.001)) && !movement.inWeb();
+        if (collides) {
+          double collisionTolerance = distanceMoved < 0.04 ? 0.04 : 0.003;
+          motionXTolerance = Math.max(motionXTolerance, collisionTolerance);
+          motionZTolerance = Math.max(motionZTolerance, collisionTolerance);
+          tags.add(EvaluationTag.COLLISION);
         }
-        motionXTolerance = reducingTolerance;
-        motionZTolerance = reducingTolerance;
-        tags.add(EvaluationTag.REDUCING);
-      } else {
-        motionXTolerance = 0.0007;
-        motionZTolerance = 0.0007;
-        if (horizontalDistance > 0.0007) {
-          boolean collides = Collision.nearSolidBlock(user, movement.boundingBox().growHorizontally(0.001)) && !movement.inWeb();
-          if (collides) {
-            double collisionTolerance = distanceMoved < 0.04 ? 0.04 : 0.003;
-            motionXTolerance = Math.max(motionXTolerance, collisionTolerance);
-            motionZTolerance = Math.max(motionZTolerance, collisionTolerance);
-            tags.add(EvaluationTag.COLLISION);
-          }
-        }
-        if (protocol.beeUpdate() && protocol.flyingPacketsCausePositionUncertainty() && (abs(motionX) < 0.09 || abs(motionZ) < 0.09)) {
-          motionXTolerance = Math.max(motionXTolerance, 0.009);
-          motionZTolerance = Math.max(motionZTolerance, 0.009);
-          tags.add(EvaluationTag.FLYING);
-        }
+      }
+      if (protocol.beeUpdate() && protocol.flyingPacketsCausePositionUncertainty() && (abs(motionX) < 0.09 || abs(motionZ) < 0.09)) {
+        motionXTolerance = Math.max(motionXTolerance, 0.009);
+        motionZTolerance = Math.max(motionZTolerance, 0.009);
+        tags.add(EvaluationTag.FLYING);
       }
 
       if (abs(motionY) < 0.5) {

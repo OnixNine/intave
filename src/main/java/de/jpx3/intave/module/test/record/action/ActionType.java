@@ -20,7 +20,8 @@ public enum ActionType {
 	RECEIVE_VELOCITY,
 	PISTON_SLIME,
 	SHULKER_BOX,
-	ATTACK_REDUCTION
+	ATTACK_REDUCTION,
+	ATTACK_REDUCTION_V2
 
 	;
 	public final static StreamCodec<ByteBuf, ByteBuf, @NotNull ActionType> STREAM_CODEC = ByteBufStreamCodecs.STRING.beforeAndAfter(

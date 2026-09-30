@@ -18,6 +18,7 @@ import de.jpx3.intave.check.movement.physics.config.MovementConfiguration;
 import de.jpx3.intave.check.movement.physics.environment.SimulationEnvironment;
 import de.jpx3.intave.check.movement.physics.simulator.Simulation;
 import de.jpx3.intave.check.movement.physics.simulator.Simulator;
+import de.jpx3.intave.check.movement.physics.simulator.Simulators;
 import de.jpx3.intave.module.test.record.MovementRecording;
 import de.jpx3.intave.resource.Resources;
 import de.jpx3.intave.search.SearchBrancher;
@@ -195,7 +196,7 @@ final class PtrBranchingVisualizationTest {
 		List<BranchTrace> results = new ArrayList<>(branches.size());
 		for (MovementSearchBranch branch : branches) {
 			SimulationEnvironment branchEnvironment = branch.modifiedMutableView(rootEnvironment);
-			Simulation simulation = simulator.simulateTick(user, branchEnvironment.mutableBaseMotionCopy(), branchEnvironment.immutableView(), branch.moveConfig());
+			Simulation simulation = simulateBranch(user, simulator, branchEnvironment, branch);
 			Motion predicted = simulation.offsetMotion().copy();
 			double loss = simulation.positionDifference(targetPosition);
 			results.add(new BranchTrace(shortKey(branch.frequencyKey()), formatSampleConfiguration(branch.moveConfig()), loss, branch.canFinishExplicitTick(), winnerIsInFirstLayer && branch.frequencyKey() == selectedFrequencyKey, predicted.motionX(), predicted.motionY(), predicted.motionZ()));
@@ -225,7 +226,9 @@ final class PtrBranchingVisualizationTest {
 			MutableMultiTickLayer layer = new MutableMultiTickLayer(depth);
 			List<SearchParent> nextParents = new ArrayList<>();
 			for (SearchParent parent : parents) {
-				Set<MovementSearchBranch> branches = parent.branches() == null ? searchTickBranches(user, parent.environment(), parent.simulator()) : parent.branches();
+				Set<MovementSearchBranch> branches = parent.branches() == null
+					? searchTickBranches(user, parent.environment(), parent.simulator())
+					: parent.branches();
 				List<CandidatePath> candidates = simulateLayerCandidates(user, parent, branches, depth, startPosition, targetPosition, lastReportedPosition, flyingLimit, parent.candidateId(), nextCandidateId);
 				allCandidates.addAll(candidates);
 				layer.capture(candidates, selectedDepth == depth ? selected : null);
@@ -247,7 +250,7 @@ final class PtrBranchingVisualizationTest {
 					retainedIds.add(candidate.id());
 					expandedIds.add(candidate.id());
 					SimulationEnvironment nextEnvironment = candidate.simulation().environment().mutableView();
-					Simulator nextSimulator = parent.simulator().simulateAround(user, nextEnvironment, candidate.simulation(), targetPosition, rootEnvironment.rotation());
+					Simulator nextSimulator = candidate.simulation().environment().simulator().simulateAround(user, nextEnvironment, candidate.simulation(), targetPosition, rootEnvironment.rotation());
 					nextParents.add(new SearchParent(nextEnvironment, nextSimulator, candidate.steps(), null, candidate.id()));
 				}
 			}
@@ -295,7 +298,7 @@ final class PtrBranchingVisualizationTest {
 		List<CandidatePath> candidates = new ArrayList<>(sortedBranches.size());
 		for (MovementSearchBranch branch : sortedBranches) {
 			SimulationEnvironment branchEnvironment = branch.modifiedMutableView(parent.environment());
-			Simulation simulation = parent.simulator().simulateTick(user, branchEnvironment.mutableBaseMotionCopy(), branchEnvironment.immutableView(), branch.moveConfig());
+			Simulation simulation = simulateBranch(user, parent.simulator(), branchEnvironment, branch);
 			simulation.setEnvironment(branchEnvironment);
 			simulation.setCanFinishExplicitTick(branch.canFinishExplicitTick());
 			simulation.setBranchFrequencyKey(branch.frequencyKey());
@@ -310,6 +313,24 @@ final class PtrBranchingVisualizationTest {
 			simulation.expire();
 		}
 		return candidates;
+	}
+
+	private static Simulation simulateBranch(
+		User user,
+		Simulator preTickSimulator,
+		SimulationEnvironment environment,
+		MovementSearchBranch branch
+	) {
+		Motion motion = preTickSimulator.simulatePreTick(
+			user, environment.mutableBaseMotionCopy(), environment
+		);
+		environment.setBaseMotion(motion);
+		Simulator tickSimulator = Simulators.selectFor(environment);
+		environment.setSimulator(tickSimulator);
+		environment.setStepHeight(tickSimulator.stepHeight(user));
+		return tickSimulator.simulateTick(
+			user, motion, environment.immutableView(), branch.moveConfig()
+		);
 	}
 
 	private static Retention retainFlyingCandidates(List<CandidatePath> candidates) {
@@ -383,7 +404,6 @@ final class PtrBranchingVisualizationTest {
 			case "SprintingBrancher" -> "Sprinting";
 			case "UpdateBrancher" -> "Ambiguous updates";
 			case "UseItemBrancher" -> "Item use";
-			case "AttackReduceBrancher" -> "Attack reduction";
 			case "JumpBrancher" -> "Jump";
 			default -> brancher.getClass().getSimpleName().replace("Brancher", "");
 		};

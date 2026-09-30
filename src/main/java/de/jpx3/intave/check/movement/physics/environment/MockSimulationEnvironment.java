@@ -44,6 +44,7 @@ public final class MockSimulationEnvironment implements SimulationEnvironment {
   private double baseMotionX, baseMotionY, baseMotionZ;
   private List<PostTickSimulation> postTickSimulations = Collections.emptyList();
   private List<PistonSlimeMovement> pistonSlimeMovements = Collections.emptyList();
+  private final List<TickAmbiguousUpdate> tickAmbiguousUpdates = new ArrayList<>();
   private Map<BlockPosition, ShulkerBox> shulkerBoxes = Collections.emptyMap();
   private double jumpHeight;
   private float height = 1.8F;
@@ -67,6 +68,7 @@ public final class MockSimulationEnvironment implements SimulationEnvironment {
   private float boatGlide;
   private double boatWaterLevel;
   private int physicsPacketRelinkFlyVL;
+	private long currentTick, activeSequence;
 	private final float frictionPosSubtraction = 1;
   private double fallDistance;
   private boolean inWeb;
@@ -984,22 +986,26 @@ public final class MockSimulationEnvironment implements SimulationEnvironment {
 
   @Override
   public long currentTick() {
-    return 0;
+    return currentTick;
+  }
+
+  public void setCurrentTick(long currentTick) {
+    this.currentTick = currentTick;
   }
 
   @Override
   public long activeSequence() {
-    return 0;
+    return activeSequence;
   }
 
   @Override
   public void setActiveSequence(long activeSequence) {
-
+    this.activeSequence = activeSequence;
   }
 
   @Override
   public List<TickAmbiguousUpdate> allTickAmbiguousUpdates() {
-    return new ArrayList<>();
+    return tickAmbiguousUpdates;
   }
 
   @Override

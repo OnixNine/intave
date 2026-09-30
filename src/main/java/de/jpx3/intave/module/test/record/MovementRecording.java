@@ -139,9 +139,15 @@ public final class MovementRecording {
 	}
 
 	/** Records one reduction before the movement frame that will be appended next. */
-	public synchronized void recordAttackReduction() {
+	public synchronized void recordAttackReduction(
+		boolean lastActiveInTick, boolean mandatory
+	) {
 		long tick = ticks();
-		actions.add(new AttackReduction(TickRange.betweenExclusive(tick, tick + 1)));
+		actions.add(new AttackReduction(
+			lastActiveInTick,
+			mandatory,
+			TickRange.betweenExclusive(tick, tick + 1)
+		));
 	}
 
 	/**

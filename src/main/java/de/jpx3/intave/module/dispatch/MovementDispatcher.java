@@ -1345,14 +1345,8 @@ public final class MovementDispatcher extends Module {
     movementData.activeTick(VEHICLE_EXIT);
     if (movementData.isInVehicle()) {
       movementData.dismountRidingEntity("Sneak exit");
-//      movementData.queueTickAmbiguousUpdate(
-//        SneakingUpdate.sneaking(false, movementData)
-//      );
       movementData.setSneaking(false);
     } else {
-//      movementData.queueTickAmbiguousUpdate(
-//        SneakingUpdate.sneaking(true, movementData)
-//      );
       movementData.setSneaking(true);
     }
     if (IntaveControl.DEBUG_PLAYER_ACTIONS || user.receives(MessageChannel.DEBUG_PLAYER_ACTIONS)) {
@@ -1362,9 +1356,6 @@ public final class MovementDispatcher extends Module {
 
   private void stopSneak(User user) {
     MovementMetadata movementData = user.meta().movement();
-//    movementData.queueTickAmbiguousUpdate(
-//      SneakingUpdate.sneaking(false, movementData)
-//    );
     movementData.setSneaking(false);
     if (IntaveControl.DEBUG_PLAYER_ACTIONS || user.receives(MessageChannel.DEBUG_PLAYER_ACTIONS)) {
       user.sendMessage(ChatColor.RED + "Stop sneaking after " + movementData.ticks(SNEAKING));

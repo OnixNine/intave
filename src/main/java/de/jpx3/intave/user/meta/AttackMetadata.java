@@ -1,6 +1,7 @@
 package de.jpx3.intave.user.meta;
 
 import de.jpx3.intave.annotate.Nullable;
+import de.jpx3.intave.check.movement.physics.environment.AttackCooldown;
 import de.jpx3.intave.module.tracker.entity.Entity;
 import de.jpx3.intave.module.tracker.entity.Entity.EntityPositionContext;
 import de.jpx3.intave.module.tracker.entity.EntityTracker;
@@ -13,6 +14,7 @@ import org.bukkit.entity.Player;
 
 public final class AttackMetadata {
   private final Player player;
+  private final AttackCooldown attackCooldown = new AttackCooldown();
   private double lastReach;
   private int lastAttackedEntityID = -1;
 
@@ -99,6 +101,10 @@ public final class AttackMetadata {
 
   public FakePlayer fakePlayer() {
     return fakePlayer;
+  }
+
+  public AttackCooldown attackCooldown() {
+    return attackCooldown;
   }
 
   public boolean recentlyAttacked(long time) {

@@ -11,6 +11,7 @@
 
 package de.jpx3.intave.module.test.record.action;
 
+import de.jpx3.intave.codec.ByteBufStreamCodecs;
 import de.jpx3.intave.codec.StreamCodec;
 import de.jpx3.intave.module.test.record.TickRange;
 import io.netty.buffer.ByteBuf;
@@ -22,20 +23,36 @@ import java.util.Objects;
  * One client-side horizontal-motion reduction caused by a successful knockback attack.
  *
  * <p>The action is timestamped independently of movement frames so a replay can place it in a
- * skipped client tick through the tick-ambiguous update system. The range currently identifies
- * the next recorded movement frame; it does not represent multiple reductions.
+ * skipped client tick through the tick-ambiguous update system. {@code lastActiveInTick} preserves
+ * the tick boundary even when no movement packet was recorded between two reductions.
  */
 public final class AttackReduction extends Action {
 	public static final StreamCodec<ByteBuf, ByteBuf, AttackReduction> STREAM_CODEC =
 		StreamCodec.compound(
+			ByteBufStreamCodecs.BOOLEAN, AttackReduction::lastActiveInTick,
+			ByteBufStreamCodecs.BOOLEAN, AttackReduction::mandatory,
 			TickRange.STREAM_CODEC, AttackReduction::tickRange,
 			AttackReduction::new
 		);
 
+	private final boolean lastActiveInTick;
+	private final boolean mandatory;
 	private final TickRange tickRange;
 
-	public AttackReduction(TickRange tickRange) {
+	public AttackReduction(
+		boolean lastActiveInTick, boolean mandatory, TickRange tickRange
+	) {
+		this.lastActiveInTick = lastActiveInTick;
+		this.mandatory = mandatory;
 		this.tickRange = Objects.requireNonNull(tickRange, "tickRange");
+	}
+
+	public boolean lastActiveInTick() {
+		return lastActiveInTick;
+	}
+
+	public boolean mandatory() {
+		return mandatory;
 	}
 
 	public TickRange tickRange() {
@@ -44,7 +61,7 @@ public final class AttackReduction extends Action {
 
 	@Override
 	public @NotNull ActionType type() {
-		return ActionType.ATTACK_REDUCTION;
+		return ActionType.ATTACK_REDUCTION_V2;
 	}
 
 	@Override
@@ -53,16 +70,20 @@ public final class AttackReduction extends Action {
 			return true;
 		}
 		return object instanceof AttackReduction
+			&& lastActiveInTick == ((AttackReduction) object).lastActiveInTick
+			&& mandatory == ((AttackReduction) object).mandatory
 			&& tickRange.equals(((AttackReduction) object).tickRange);
 	}
 
 	@Override
 	public int hashCode() {
-		return tickRange.hashCode();
+		return Objects.hash(lastActiveInTick, mandatory, tickRange);
 	}
 
 	@Override
 	public String toString() {
-		return "AttackReduction{tickRange=" + tickRange + '}';
+		return "AttackReduction{lastActiveInTick=" + lastActiveInTick
+			+ ", mandatory=" + mandatory
+			+ ", tickRange=" + tickRange + '}';
 	}
 }

@@ -13,11 +13,19 @@ package de.jpx3.intave.check.movement.physics.branch;
 
 import de.jpx3.intave.check.movement.physics.environment.MockSimulationEnvironment;
 import de.jpx3.intave.check.movement.physics.environment.SimulationEnvironment;
+import de.jpx3.intave.check.movement.physics.update.CausalConstraint;
+import de.jpx3.intave.check.movement.physics.update.Reduce;
+import de.jpx3.intave.share.Motion;
 import de.jpx3.intave.share.Rotation;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class MovementSearchBranchEnvironmentCacheTest {
   @Test
@@ -37,5 +45,142 @@ final class MovementSearchBranchEnvironmentCacheTest {
     assertEquals(90.0F, first.rotationYaw());
     assertEquals(30.0F, first.rotationPitch());
     assertEquals(2, first.depth());
+  }
+
+  @Test
+  void previousPostTickCandidateDefersSwimmingUntilPreTick() {
+    MockSimulationEnvironment environment = new MockSimulationEnvironment();
+    environment.setInWater(true);
+    environment.setEyesInWater(true);
+    environment.setSwimming(false);
+
+    Motion candidateMotion = Motion.of(0.25, -0.5, 0.75);
+    SimulationEnvironment branch = MovementSearchBranch.blank(null)
+      .withPreviousPostTickCandidate(candidateMotion, true)
+      .modifiedMutableView(environment);
+
+    assertEquals(candidateMotion, branch.mutableBaseMotionCopy());
+    assertTrue(branch.lastSprinting());
+    assertFalse(branch.isSwimming());
+  }
+
+  @Test
+  void markedReductionsAreSplitAcrossSimulatedTicks() {
+    MockSimulationEnvironment environment = new MockSimulationEnvironment();
+    environment.setBaseMotion(1.0, 0.0, 1.0);
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(true, CausalConstraint.openEnded(0, 1))
+    );
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(true, CausalConstraint.openEnded(0, 2))
+    );
+
+    MovementSearchInput input = MovementSearchInput.forTick(null, null, environment, false);
+    Collection<MovementSearchBranch> branches = new ArrayList<>();
+    new UpdateBrancher().branch(input, MovementSearchBranch.blank(input), branches);
+
+    assertEquals(2, branches.size());
+    assertTrue(branches.stream().noneMatch(MovementSearchBranch::canFinishExplicitTick));
+    assertTrue(branches.stream().anyMatch(branch ->
+      branch.modifiedMutableView(environment).activeSequence() == 0
+    ));
+    assertTrue(branches.stream().anyMatch(branch -> {
+      SimulationEnvironment modified = branch.modifiedMutableView(environment);
+      return modified.activeSequence() == 1
+        && modified.baseMotionX() == 0.6D
+        && modified.baseMotionZ() == 0.6D;
+    }));
+  }
+
+  @Test
+  void unmarkedReductionsCanShareOneSimulatedTick() {
+    MockSimulationEnvironment environment = new MockSimulationEnvironment();
+    environment.setBaseMotion(1.0, 0.0, 1.0);
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(false, CausalConstraint.openEnded(0, 1))
+    );
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(false, CausalConstraint.openEnded(0, 2))
+    );
+
+    MovementSearchInput input = MovementSearchInput.forTick(null, null, environment, false);
+    Collection<MovementSearchBranch> branches = new ArrayList<>();
+    new UpdateBrancher().branch(input, MovementSearchBranch.blank(input), branches);
+
+    assertEquals(3, branches.size());
+    assertTrue(branches.stream().anyMatch(branch -> {
+      SimulationEnvironment modified = branch.modifiedMutableView(environment);
+      return branch.canFinishExplicitTick()
+        && modified.activeSequence() == 2
+        && modified.baseMotionX() == 0.36D
+        && modified.baseMotionZ() == 0.36D;
+    }));
+  }
+
+  @Test
+  void postponedReductionMustRunInTheNextSimulatedTick() {
+    MockSimulationEnvironment environment = new MockSimulationEnvironment();
+    environment.setCurrentTick(1);
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(true, CausalConstraint.openEnded(0, 1))
+    );
+
+    MovementSearchInput input = MovementSearchInput.forTick(null, null, environment, false);
+    Collection<MovementSearchBranch> branches = new ArrayList<>();
+    new UpdateBrancher().branch(input, MovementSearchBranch.blank(input), branches);
+
+    assertEquals(1, branches.size());
+    MovementSearchBranch branch = branches.iterator().next();
+    assertTrue(branch.canFinishExplicitTick());
+    assertEquals(1, branch.modifiedMutableView(environment).activeSequence());
+  }
+
+  @Test
+  void remainderCanBeDeferredAfterMarkedReductionRan() {
+    MockSimulationEnvironment environment = new MockSimulationEnvironment();
+    environment.setCurrentTick(1);
+    environment.setActiveSequence(1);
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(true, CausalConstraint.openEnded(0, 1))
+    );
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(false, CausalConstraint.openEnded(0, 2))
+    );
+
+    MovementSearchInput input = MovementSearchInput.forTick(null, null, environment, false);
+    Collection<MovementSearchBranch> branches = new ArrayList<>();
+    new UpdateBrancher().branch(input, MovementSearchBranch.blank(input), branches);
+
+    assertEquals(2, branches.size());
+    assertTrue(branches.stream().anyMatch(branch ->
+      !branch.canFinishExplicitTick()
+        && branch.modifiedMutableView(environment).activeSequence() == 1
+    ));
+    assertTrue(branches.stream().anyMatch(branch ->
+      branch.canFinishExplicitTick()
+        && branch.modifiedMutableView(environment).activeSequence() == 2
+    ));
+  }
+
+  @Test
+  void optionalReductionCanBeSkippedForTheExplicitTick() {
+    MockSimulationEnvironment environment = new MockSimulationEnvironment();
+    environment.setBaseMotion(1.0, 0.0, 1.0);
+    environment.allTickAmbiguousUpdates().add(
+      new Reduce(true, false, CausalConstraint.openEnded(0, 1))
+    );
+
+    MovementSearchInput input = MovementSearchInput.forTick(null, null, environment, false);
+    Collection<MovementSearchBranch> branches = new ArrayList<>();
+    new UpdateBrancher().branch(input, MovementSearchBranch.blank(input), branches);
+
+    assertEquals(2, branches.size());
+    assertTrue(branches.stream().allMatch(MovementSearchBranch::canFinishExplicitTick));
+    assertTrue(branches.stream().anyMatch(branch ->
+      branch.modifiedMutableView(environment).activeSequence() == 0
+    ));
+    assertTrue(branches.stream().anyMatch(branch ->
+      branch.modifiedMutableView(environment).activeSequence() == 1
+    ));
   }
 }

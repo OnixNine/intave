@@ -205,7 +205,7 @@ public final class MovementSearchBranch {
 	MovementSearchBranch withPreviousPostTickCandidate(Motion motion, boolean priorSprinting) {
 		return modifyBefore(environment -> {
 			environment.setBaseMotion(motion);
-			environment.updateSwimming(priorSprinting);
+			environment.setLastSprinting(priorSprinting);
 			return environment;
 		}, PREVIOUS_POST_TICK, booleanValue(priorSprinting));
 	}

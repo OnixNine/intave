@@ -250,7 +250,9 @@ final class MovementRecordingSerializerTest {
 	@Test
 	void serializesAttackReductions() {
 		MovementRecording recording = MovementRecording.create();
-		AttackReduction action = new AttackReduction(TickRange.betweenExclusive(3, 4));
+		AttackReduction action = new AttackReduction(
+			false, false, TickRange.betweenExclusive(3, 4)
+		);
 		recording.insertAction(action);
 
 		ByteBuf buffer = Unpooled.buffer();
@@ -259,6 +261,8 @@ final class MovementRecordingSerializerTest {
 			MovementRecording decoded = MovementRecording.STREAM_CODEC.decode(buffer);
 
 			assertEquals(List.of(action), decoded.actions());
+			assertFalse(((AttackReduction) decoded.actions().get(0)).lastActiveInTick());
+			assertFalse(((AttackReduction) decoded.actions().get(0)).mandatory());
 		} finally {
 			buffer.release();
 		}

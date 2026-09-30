@@ -104,13 +104,7 @@ public abstract class Simulator {
     environment.updateMovement(sentPosition, sentRotation);
 
     environment.setStepHeight(stepHeight(user));
-    Motion afterPreTick = simulatePreTick(user, environment.mutableBaseMotionCopy(), environment);
-    environment.setBaseMotion(afterPreTick);
-
-    Simulator nextSimulator = Simulators.selectFor(environment);
-    environment.setSimulator(nextSimulator);
-    environment.setStepHeight(nextSimulator.stepHeight(user));
-    return nextSimulator;
+    return this;
   }
 
   /**

@@ -29,7 +29,6 @@ public final class MovementSearchBranchers {
       new SprintingBrancher(),
       new UpdateBrancher(),
       new UseItemBrancher(),
-      new AttackReduceBrancher(),
       JumpBrancher.restricted()
     );
   }

@@ -26,6 +26,7 @@ import de.jpx3.intave.check.movement.physics.search.collector.ExhaustiveSimulati
 import de.jpx3.intave.check.movement.physics.search.collector.MergingSimulationCollector;
 import de.jpx3.intave.check.movement.physics.simulator.Simulation;
 import de.jpx3.intave.check.movement.physics.simulator.Simulator;
+import de.jpx3.intave.check.movement.physics.simulator.Simulators;
 import de.jpx3.intave.diagnostic.timings.Timings;
 import de.jpx3.intave.executor.RateLimiter;
 import de.jpx3.intave.player.collider.complex.SimulationResult;
@@ -92,7 +93,7 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 				continue;
 			}
 			SimulationEnvironment firstTickEnvironment = firstTickSimulation.environment().mutableView();
-			Simulator secondTickSimulator = simulator.simulateAround(
+			Simulator secondTickSimulator = firstTickEnvironment.simulator().simulateAround(
 				user, firstTickEnvironment, firstTickSimulation,
 				receivedPosition, environment.rotation()
 			);
@@ -112,7 +113,7 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 					continue;
 				}
 				SimulationEnvironment secondTickEnvironment = secondTickFlyingSimulation.environment().mutableView();
-				Simulator thirdTickSimulator = secondTickSimulator.simulateAround(
+				Simulator thirdTickSimulator = secondTickEnvironment.simulator().simulateAround(
 					user, secondTickEnvironment, secondTickFlyingSimulation,
 					receivedPosition, environment.rotation()
 				);
@@ -162,7 +163,7 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 		Simulation bestSimulation = Simulation.invalid();
 		for (Simulation firstTickSimulation : firstTickContainer.flyingSimulations()) {
 			SimulationEnvironment firstTickEnvironment = firstTickSimulation.environment().mutableView();
-			Simulator secondTickSimulator = simulator.simulateAround(
+			Simulator secondTickSimulator = firstTickEnvironment.simulator().simulateAround(
 				user, firstTickEnvironment, firstTickSimulation,
 				receivedPosition, environment.rotation()
 			);
@@ -184,7 +185,7 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 
 			for (Simulation secondTickFlyingSimulation : secondTickContainer.flyingSimulations()) {
 				SimulationEnvironment secondTickEnvironment = secondTickFlyingSimulation.environment().mutableView();
-				Simulator thirdTickSimulator = secondTickSimulator.simulateAround(
+				Simulator thirdTickSimulator = secondTickEnvironment.simulator().simulateAround(
 					user, secondTickEnvironment, secondTickFlyingSimulation,
 					receivedPosition, environment.rotation()
 				);
@@ -334,7 +335,7 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 				continue;
 			}
 			SimulationEnvironment firstTickEnvironment = firstTickSimulation.environment().mutableView();
-			Simulator secondTickSimulator = simulator.simulateAround(
+			Simulator secondTickSimulator = firstTickEnvironment.simulator().simulateAround(
 				user, firstTickEnvironment, firstTickSimulation,
 				receivedPosition, movementData.rotation()
 			);
@@ -386,7 +387,7 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 				}
 
 				SimulationEnvironment secondTickEnvironment = secondTickFlyingSimulation.environment().mutableView();
-				Simulator thirdTickSimulator = secondTickSimulator.simulateAround(
+				Simulator thirdTickSimulator = secondTickEnvironment.simulator().simulateAround(
 					user, secondTickEnvironment, secondTickFlyingSimulation,
 					receivedPosition, movementData.rotation()
 				);
@@ -594,8 +595,15 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 		for (MovementSearchBranch config : sortedConfigs) {
 			boolean canFinishExplicitTick = config.canFinishExplicitTick();
 			SimulationEnvironment localEnvironment = config.modifiedMutableView(environment);
-			Simulation simulation = simulator.simulateTick(
-				user, localEnvironment.mutableBaseMotionCopy(),
+			Motion preTickMotion = simulator.simulatePreTick(
+				user, localEnvironment.mutableBaseMotionCopy(), localEnvironment
+			);
+			localEnvironment.setBaseMotion(preTickMotion);
+			Simulator tickSimulator = Simulators.selectFor(localEnvironment);
+			localEnvironment.setSimulator(tickSimulator);
+			localEnvironment.setStepHeight(tickSimulator.stepHeight(user));
+			Simulation simulation = tickSimulator.simulateTick(
+				user, preTickMotion,
 				localEnvironment.immutableView(), config.moveConfig()
 			);
 			simulation.setEnvironment(localEnvironment);

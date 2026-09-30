@@ -32,48 +32,60 @@ public final class UpdateBrancher extends MovementSearchBrancher {
 		}
 		// Some updates MUST happen in this tick, so we enforce them and all before to happen now
 		long lastVerifiedCompleteUpdate = Long.MIN_VALUE;
+		long lastExplicitlyRequiredUpdate = Long.MIN_VALUE;
+		long firstUpdateThatCannotBePostponed = Long.MAX_VALUE;
 		for (TickAmbiguousUpdate update : updates) {
 			CausalConstraint updateConstraint = update.constraint();
 			if (updateConstraint.mustHappenThisTick(environment) && !updateConstraint.isOpenBounded()) {
 				lastVerifiedCompleteUpdate = Math.max(lastVerifiedCompleteUpdate, updateConstraint.sequenceNumber());
+			}
+			if (update.mustRunBeforeExplicitTick()) {
+				lastExplicitlyRequiredUpdate = Math.max(
+					lastExplicitlyRequiredUpdate,
+					updateConstraint.sequenceNumber()
+				);
+			}
+			if (!update.canBePostponed(environment)) {
+				firstUpdateThatCannotBePostponed = Math.min(
+					firstUpdateThatCannotBePostponed,
+					updateConstraint.sequenceNumber()
+				);
 			}
 		}
 
 		UnaryOperator<SimulationEnvironment> environmentUpdater = UnaryOperator.identity();
 		List<UnaryOperator<SimulationEnvironment>> options = new ArrayList<>();
 		List<Boolean> canFinishTick = new ArrayList<>();
-//		List<String> optionDebug = new ArrayList<>();
+		List<TickAmbiguousUpdate> updatesAppliedThisTick = new ArrayList<>();
+		long appliedSequence = environment.activeSequence();
+		int optionIndex = 0;
+		long requiredForExplicitTick = Math.max(
+			lastVerifiedCompleteUpdate, lastExplicitlyRequiredUpdate
+		);
 
-		/*
-		 *   UUUU (T) UUUL T IUUU
-		 *                 ^
-		 *   all branches that did not complete all previous Us must be denied.
-		 *   however, since we might have further flying-tick injection simulation,
-		 *   an invalid branch may not be detectable unless after sufficient context is given.
-		 *
-		 *   special case L/I:
-		 *   for the special case that an action is still open-bounded in its tick-end constraint,
-		 *   we postpone the fulfillment requirement until the bound is closed.
-		 *
-		 */
+		while (true) {
+			if (firstUpdateThatCannotBePostponed == Long.MAX_VALUE
+				|| appliedSequence >= firstUpdateThatCannotBePostponed) {
+				options.add(environmentUpdater);
+				canFinishTick.add(appliedSequence >= requiredForExplicitTick);
+			}
+			if (optionIndex == updates.size()) {
+				break;
+			}
 
-		for (TickAmbiguousUpdate update : updates) {
-			// only allow non-action if the update is not required to happen now
+			TickAmbiguousUpdate update = updates.get(optionIndex++);
+			if (!canRunInSameTick(update, updatesAppliedThisTick)) {
+				break;
+			}
+			updatesAppliedThisTick.add(update);
+
 			CausalConstraint constraint = update.constraint();
-			boolean postponeAllowed = constraint.sequenceNumber() > lastVerifiedCompleteUpdate;
-			boolean completeAllowed = constraint.sequenceNumber() == lastVerifiedCompleteUpdate || constraint.isOpenBounded();
-
-			options.add(environmentUpdater);
-			canFinishTick.add(postponeAllowed);
-//			optionDebug.add("Postpone " + update);
 			environmentUpdater = andThen(environmentUpdater, env -> {
 				update.applyTo(env);
 				env.setActiveSequence(constraint.sequenceNumber());
 				return env;
 			});
-			options.add(environmentUpdater);
-			canFinishTick.add(completeAllowed);
-//			optionDebug.add("Complete " + update);
+			appliedSequence = constraint.sequenceNumber();
 		}
 
 		for (int i = options.size() - 1; i >= 0; i--) {
@@ -83,9 +95,19 @@ public final class UpdateBrancher extends MovementSearchBrancher {
 			cfg = cfg.withAmbiguousUpdates(envUpdate, i, thisCanFinishTick);
 			cfg = cfg.withExplicitTickFinishAllow(thisCanFinishTick);
 			outputBranches.add(cfg);
-//			input.user().sendMessage("Branching option: " + optionDebug.get(i) + " (canFinishTick=" + thisCanFinishTick + ")");
 		}
-//		input.user().sendMessage("Branching " + options.size() + " options");
+	}
+
+	private static boolean canRunInSameTick(
+		TickAmbiguousUpdate update, List<TickAmbiguousUpdate> appliedUpdates
+	) {
+		for (TickAmbiguousUpdate appliedUpdate : appliedUpdates) {
+			if (!update.canRunInSameTickWith(appliedUpdate)
+				|| !appliedUpdate.canRunInSameTickWith(update)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static <T> UnaryOperator<T> andThen(UnaryOperator<T> first, UnaryOperator<T> second) {

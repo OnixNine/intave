@@ -142,6 +142,7 @@ public final class AbilityMetadata {
     setupAttribute("generic.movementSpeed", atLeastMinecraft16 ? (double) 0.1F : 0.1D);
     setupAttribute("generic.maxHealth", 20.0D);
     if (MinecraftVersions.VER1_9_0.atOrAbove()) {
+      setupAttribute("generic.attackSpeed", 4.0D);
       setupAttribute("generic.armor", 0.0D);
       setupAttribute("generic.armorToughness", 0.0D);
     }
@@ -286,6 +287,10 @@ public final class AbilityMetadata {
 
   public double waterMovementEfficiency() {
     return unitIntervalAttributeValue("generic.water_movement_efficiency");
+  }
+
+  public boolean hasWaterMovementEfficiency() {
+    return hasAttribute("generic.water_movement_efficiency");
   }
 
   public double airDragModifier() {

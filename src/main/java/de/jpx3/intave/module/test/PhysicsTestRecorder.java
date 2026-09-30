@@ -111,10 +111,12 @@ public final class PhysicsTestRecorder extends Module {
 	}
 
 	/** Captures one attack-induced client motion reduction between movement frames. */
-	public void recordAttackReduction(User user) {
+	public void recordAttackReduction(
+		User user, boolean lastActiveInTick, boolean mandatory
+	) {
 		MovementRecording movementRecording = recordingSessionOf(user);
 		if (movementRecording != null) {
-			movementRecording.recordAttackReduction();
+			movementRecording.recordAttackReduction(lastActiveInTick, mandatory);
 		}
 	}
 

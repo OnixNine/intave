@@ -164,47 +164,7 @@ public final class Physics extends Check {
     movementData.setSimulator(simulator);
     movementData.setStepHeight(simulator.stepHeight(user));
 
-    /*
-     * Run simulatePreTick on last base motion
-     */
-    SimulationEnvironment firstTickBranch = movementData.mutableView();
-    Motion previousBaseMotion = firstTickBranch.mutableBaseMotionCopy();
-    Timings.CHECK_PHYSICS_SIMULATOR_PRE_TICK.start();
-    Motion preTickMotion = simulator.simulatePreTick(
-      user, previousBaseMotion.copy(), firstTickBranch
-    );
-    Timings.CHECK_PHYSICS_SIMULATOR_PRE_TICK.stop();
-    firstTickBranch.setBaseMotion(preTickMotion);
-
-    simulator = Simulators.selectFor(firstTickBranch);
-    movementData.setSimulator(simulator);
-    movementData.setStepHeight(simulator.stepHeight(user));
-
-    /*
-     * Run simulatePreTick on all postTickMotionCandidates, discarding the environment changes
-     */
-    List<PostTickSimulation> candidates = movementData.postTickMotionCandidates();
-    if (!candidates.isEmpty()) {
-      // micro optimization
-      if (candidates.size() == 1 && candidates.get(0).motion().equals(previousBaseMotion)) {
-        movementData.setPostTickMotionCandidates(
-          Collections.singletonList(candidates.get(0).withMotion(preTickMotion))
-        );
-      } else {
-        List<PostTickSimulation> newCandidates = new ArrayList<>();
-        for (PostTickSimulation candidate : candidates) {
-          Timings.CHECK_PHYSICS_SIMULATOR_PRE_TICK.start();
-          Motion candidateMotion = simulator.simulatePreTick(
-            user, candidate.motion(), movementData.mutableView()
-          );
-          Timings.CHECK_PHYSICS_SIMULATOR_PRE_TICK.stop();
-          newCandidates.add(candidate.withMotion(candidateMotion));
-        }
-        movementData.setPostTickMotionCandidates(newCandidates);
-      }
-    }
-
-    firstTickBranch.commitTo(movementData);
+    Motion previousBaseMotion = movementData.mutableBaseMotionCopy();
 
     movementData.treatThisFlyPacketAsMovePacket = false;
 
@@ -344,7 +304,6 @@ public final class Physics extends Check {
         FLYING_PACKET_CLIENT,
         NEARBY_COLLISION_INACCURACY,
         ENTITY_USE,
-        ATTACK_REDUCE,
         WATERFLOW_PUSH,
         SLIME_BLOCK
       );

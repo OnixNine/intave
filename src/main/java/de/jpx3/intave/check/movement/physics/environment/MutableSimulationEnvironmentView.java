@@ -1188,6 +1188,7 @@ final class MutableSimulationEnvironmentView implements SimulationEnvironment {
     tickOverride(TELEPORT, false);
     inactiveTickOverride(
       STEP,
+      ATTACK_REDUCE,
       IN_LAVA,
       VELOCITY,
       EDGE_SNEAKING,

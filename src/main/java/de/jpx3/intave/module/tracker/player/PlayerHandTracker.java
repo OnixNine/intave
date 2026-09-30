@@ -115,6 +115,10 @@ public class PlayerHandTracker extends Module {
       inventoryData.recordPreviousHeldItemForReach(inventoryData.heldItem());
     }
 
+    if (slot != inventoryData.handSlot()) {
+      user.meta().attack().attackCooldown().reset();
+    }
+
     // apparently required?
     inventoryData.setHeldItemSlot(slot);
 
@@ -155,6 +159,9 @@ public class PlayerHandTracker extends Module {
     }
 
     Modules.feedback().synchronize(player, slot, (player1, slot1) -> {
+      if (slot != user.meta().inventory().handSlot()) {
+        user.meta().attack().attackCooldown().reset();
+      }
       user.meta().inventory().setHeldItemSlot(slot);
       user.meta().inventory().clearPreviousSpearThisTick();
     });

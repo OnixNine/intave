@@ -19,6 +19,27 @@ public abstract class TickAmbiguousUpdate implements Comparable<TickAmbiguousUpd
 
 	public abstract CausalConstraint constraint();
 
+	/**
+	 * Whether this update may remain pending after the current simulated tick.
+	 */
+	public boolean canBePostponed(SimulationEnvironment environment) {
+		return true;
+	}
+
+	/**
+	 * Whether an explicit movement tick may finish while this update is still pending.
+	 */
+	public boolean mustRunBeforeExplicitTick() {
+		return false;
+	}
+
+	/**
+	 * Whether this update is compatible with another update in the same simulated tick.
+	 */
+	public boolean canRunInSameTickWith(TickAmbiguousUpdate other) {
+		return true;
+	}
+
 	public boolean expired(SimulationEnvironment environment) {
 		return constraint().expired(environment);
 	}

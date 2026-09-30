@@ -36,12 +36,6 @@ public final class MotionAddUpdate extends TickAmbiguousUpdate {
 		return causalConstraint;
 	}
 
-	public void setRunNotAfter(
-		long notAfter
-	) {
-		causalConstraint = causalConstraint.notAfter(notAfter);
-	}
-
 	public void canNotRunAfterThisTick(
 		SimulationEnvironment environment
 	) {
@@ -75,8 +69,7 @@ public final class MotionAddUpdate extends TickAmbiguousUpdate {
 		return new MotionAddUpdate(
 			motion.copy(),
 			CausalConstraint.openEnded(
-				metadata.currentTick(),
-				sequenceNumber
+				metadata.currentTick(), sequenceNumber
 			)
 		);
 	}
