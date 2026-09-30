@@ -1,0 +1,202 @@
+[
+  {
+    "id": "01-slime-bounce",
+    "title": "Slime bounce",
+    "subtitle": "Jumping, landing, and rebounding on slime.",
+    "report": "blocks/slime/slime_jumping_4_1_8_8.html",
+    "startTick": 84,
+    "endTick": 194,
+    "camera": [
+      5.4,
+      3.8,
+      6.2
+    ],
+    "focusCamera": [
+      8.121923,
+      3.8,
+      1.278422
+    ]
+  },
+  {
+    "id": "02-piston-slime",
+    "title": "Pistons and slime",
+    "subtitle": "A push becomes a launch, then a landing.",
+    "report": "blocks/pistonslime/pistonslime_1.html",
+    "startTick": 150,
+    "endTick": 239,
+    "camera": [
+      7,
+      6,
+      8
+    ],
+    "focusCamera": [
+      10.504612,
+      6,
+      1.628842
+    ]
+  },
+  {
+    "id": "03-honey-contact",
+    "title": "Honey contact",
+    "subtitle": "Movement changes at the edge of a honey block.",
+    "report": "blocks/honeyblock/honey_side_jump.html",
+    "startTick": 21,
+    "endTick": 120,
+    "camera": [
+      5.4,
+      3.6,
+      6.2
+    ],
+    "focusCamera": [
+      8.121923,
+      3.6,
+      1.278422
+    ]
+  },
+  {
+    "id": "04-bubble-columns",
+    "title": "Bubble columns",
+    "subtitle": "Vertical movement through water and into the air.",
+    "report": "blocks/bubblecolumn/bubbles_1.21.9.html",
+    "startTick": 46,
+    "endTick": 145,
+    "camera": [
+      6,
+      5.5,
+      7
+    ],
+    "focusCamera": [
+      9.09578,
+      5.5,
+      1.505585
+    ]
+  },
+  {
+    "id": "05-lava-motion",
+    "title": "Lava at the edge",
+    "subtitle": "Jumping along the boundary between blocks and lava.",
+    "report": "blocks/lava/lava_edge_jumping.html",
+    "startTick": 45,
+    "endTick": 144,
+    "camera": [
+      6,
+      5.5,
+      7
+    ],
+    "focusCamera": [
+      9.09578,
+      5.5,
+      1.505585
+    ]
+  },
+  {
+    "id": "06-cobweb-slowdown",
+    "title": "Cobweb slowdown",
+    "subtitle": "Entering a web, slowing down, and leaving it.",
+    "report": "blocks/cobweb/web.html",
+    "startTick": 13,
+    "endTick": 93,
+    "camera": [
+      5.5,
+      4,
+      6.5
+    ],
+    "focusCamera": [
+      7.583469,
+      5.395888,
+      -1.36945
+    ]
+  },
+  {
+    "id": "07-powder-snow",
+    "title": "Powder snow",
+    "subtitle": "Jumping and moving around powder snow.",
+    "report": "blocks/powdersnow/powdersnow2.html",
+    "startTick": 21,
+    "endTick": 120,
+    "camera": [
+      5.8,
+      4.2,
+      6.8
+    ],
+    "focusCamera": [
+      6.886309,
+      6.982836,
+      1.15704
+    ]
+  },
+  {
+    "id": "08-elytra-water",
+    "title": "Elytra meets water",
+    "subtitle": "From flight into swimming in one recorded sequence.",
+    "report": "pose/elytra/elytra_fireworks_water.html",
+    "startTick": 35,
+    "endTick": 134,
+    "camera": [
+      7,
+      5,
+      8
+    ],
+    "tourTick": 80,
+    "focusCamera": [
+      -8,
+      5,
+      -2
+    ],
+    "orbitSeconds": 1.6
+  },
+  {
+    "id": "09-large-velocity",
+    "title": "Large velocity",
+    "subtitle": "Tracking an abrupt impulse and the movement that follows.",
+    "report": "velocity/large-velocity.html",
+    "startTick": 15,
+    "endTick": 94,
+    "camera": [
+      7.5,
+      5,
+      8.5
+    ],
+    "focusCamera": [
+      11.209028,
+      5,
+      1.690471
+    ]
+  },
+  {
+    "id": "10-branch-search",
+    "title": "Inside the branch search",
+    "subtitle": "Three candidate layers. One selected movement path.",
+    "report": "blocks/slime/slime_jumping_4_1_8_8.html",
+    "startTick": 72,
+    "endTick": 72,
+    "camera": [
+      4.7,
+      3.1,
+      5.4
+    ],
+    "mode": "branches",
+    "focusCamera": [
+      7.071462,
+      3.1,
+      1.115538
+    ]
+  },
+  {
+    "id": "11-cherry-grove-run",
+    "enabled": false,
+    "disabledReason": "Source PTR is unavailable; restore it before enabling this clip.",
+    "title": "Cherry grove run",
+    "subtitle": "Following a turning sprint-jump climb through a cherry grove.",
+    "report": "pending/e4dae399-9960-4886-b497-a678b3548c9f.html",
+    "startTick": 221,
+    "endTick": 309,
+    "tourTick": 278,
+    "replaySeconds": 9,
+    "camera": [-7, 4, -4],
+    "focusCamera": [-8, 5, -4.6],
+    "orbitSeconds": 1.4,
+    "headingFollow": 0.55,
+    "followArcDegrees": 35
+  }
+]
