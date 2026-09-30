@@ -219,6 +219,41 @@ final class MovementRecordingPhysicsTests {
 	}
 
 	@Test
+	void recordedGroundStateIsAppliedAtClientTickBoundaries() {
+		MovementRecording recording = MovementRecording.create(
+			VER_1_21_2,
+			MinecraftVersions.VER1_21_4
+		);
+		preparePhysicsTestRuntime(recording);
+
+		Position position = new Position(0, 64, 0);
+		Rotation rotation = Rotation.zero();
+		AtomicReference<Location> currentLocation = new AtomicReference<>();
+		World world = createReplayWorld();
+		currentLocation.set(locationOf(world, position, rotation));
+		PlaybackBlockCacheView blockCache = new PlaybackBlockCacheView(recording);
+		User user = createReplayUser(recording, blockCache, world, currentLocation);
+		MovementMetadata metadata = user.meta().movement();
+
+		metadata.onGround = true;
+		metadata.lastOnGround = true;
+		applyRecordedGroundBeforeTick(metadata, false);
+
+		assertFalse(metadata.onGround());
+		assertFalse(metadata.lastOnGround());
+
+		applyRecordedGroundAfterMove(metadata, true);
+
+		assertTrue(metadata.onGround());
+		assertFalse(metadata.lastOnGround());
+
+		applyRecordedGroundBeforeTick(metadata, null);
+
+		assertTrue(metadata.onGround());
+		assertFalse(metadata.lastOnGround());
+	}
+
+	@Test
 	void recordedPoseDistinguishesNormalAndRejectedElytraStops() {
 		MovementRecording recording = MovementRecording.loadFrom(
 			Resources.resourceFromJarOrTestBuild(
@@ -293,6 +328,7 @@ final class MovementRecordingPhysicsTests {
 		applyAttributesForTick(recording, user, firstPositionFrame);
 		metadata.gliding = firstFrame.gliding();
 		seedInitialMovementState(user, metadata, initialPosition, initialRotation);
+		applyRecordedGroundBeforeTick(metadata, firstFrame.clientOnGround());
 		if (firstFrame.physicalPose() != null) {
 			metadata.setPose(firstFrame.physicalPose());
 		}
@@ -332,6 +368,11 @@ final class MovementRecordingPhysicsTests {
 				location.getX(), location.getY(), location.getZ(),
 				location.getYaw(), location.getPitch(),
 				hasMovement, hasRotation
+			);
+			// The packet bit is the client state after its movement. The previous
+			// frame is therefore the state entering this client tick.
+			applyRecordedGroundBeforeTick(
+				metadata, frames.get(tick - 1).clientOnGround()
 			);
 			Simulator simulator = Simulators.selectFor(metadata);
 			metadata.stepHeight = simulator.stepHeight(user);
@@ -387,7 +428,7 @@ final class MovementRecordingPhysicsTests {
 			if (!hasMovement) {
 				finishPositionlessTick(
 					user, processor, simulator, metadata, simulation,
-					previousBaseMotion, hasRotation
+					previousBaseMotion, hasRotation, frame.clientOnGround()
 				);
 				continue;
 			}
@@ -431,6 +472,8 @@ final class MovementRecordingPhysicsTests {
 			System.out.print("\r" + output);
 			simulation.environment().commitTo(metadata);
 			metadata.assumeOccurred(simulation);
+			// Apply this packet's post-move state before deriving after-tick motion.
+			applyRecordedGroundAfterMove(metadata, frame.clientOnGround());
 			finishTick(user, processor, simulator, metadata, hasMovement, hasRotation);
 
 			if (lastMessages.size() > 16) {
@@ -468,7 +511,8 @@ final class MovementRecordingPhysicsTests {
 		MovementMetadata metadata,
 		Simulation simulation,
 		Motion previousBaseMotion,
-		boolean hasRotation
+		boolean hasRotation,
+		Boolean clientOnGround
 	) {
 		boolean reinterpretedAsMove = simulation.environment().tryMoveReinterpretation(
 			simulation,
@@ -492,6 +536,7 @@ final class MovementRecordingPhysicsTests {
 			metadata.setBaseMotion(previousBaseMotion);
 			updateOnGroundIfFlying(user, metadata);
 		}
+		applyRecordedGroundAfterMove(metadata, clientOnGround);
 		finishTick(user, processor, simulator, metadata, false, hasRotation);
 		if (reinterpretedAsMove) {
 			metadata.setPosition(recordedPosition);
@@ -576,6 +621,13 @@ final class MovementRecordingPhysicsTests {
 		diagnosticLine("Base motion", formatMotion(metadata.mutableBaseMotionCopy()));
 		diagnosticLine("Ground state", "current=" + metadata.onGround()
 			+ ", previous=" + metadata.lastOnGround());
+		diagnosticLine(
+			"Recorded ground",
+			"previous=" + formatRecordedGround(tick > 0
+				? frames.get(tick - 1).clientOnGround()
+				: null)
+				+ ", current=" + formatRecordedGround(frames.get(tick).clientOnGround())
+		);
 		diagnosticLine("Gliding", metadata.gliding);
 		diagnosticLine("Pose", metadata.pose());
 		diagnosticLine(
@@ -733,6 +785,28 @@ final class MovementRecordingPhysicsTests {
 			);
 		}
 		metadata.setPostTickMotionCandidates(preTickCandidates);
+	}
+
+	private static void applyRecordedGroundBeforeTick(
+		MovementMetadata metadata, Boolean clientOnGround
+	) {
+		if (clientOnGround == null) {
+			return;
+		}
+		metadata.onGround = clientOnGround;
+		metadata.lastOnGround = clientOnGround;
+	}
+
+	private static void applyRecordedGroundAfterMove(
+		MovementMetadata metadata, Boolean clientOnGround
+	) {
+		if (clientOnGround != null) {
+			metadata.onGround = clientOnGround;
+		}
+	}
+
+	private static String formatRecordedGround(Boolean clientOnGround) {
+		return clientOnGround == null ? "not recorded" : clientOnGround.toString();
 	}
 
 	private static void preparePhysicsTestRuntime(MovementRecording recording) {
@@ -950,7 +1024,7 @@ final class MovementRecordingPhysicsTests {
 			System.err.println(String.format(
 				Locale.ROOT,
 				"  %s tick %d  position=%s  input=%s%n"
-					+ "      rotation=%s  gliding=%s  physicalPose=%s  blockChanges=%d",
+					+ "      rotation=%s  gliding=%s  physicalPose=%s  clientOnGround=%s  blockChanges=%d",
 				tick == failingTick ? ">" : " ",
 				tick,
 				frame.moveTo() == null ? "-" : formatPosition(frame.moveTo()),
@@ -958,6 +1032,7 @@ final class MovementRecordingPhysicsTests {
 				frame.rotateTo() == null ? "-" : formatRotation(frame.rotateTo()),
 				frame.gliding(),
 				frame.physicalPose() == null ? "-" : frame.physicalPose(),
+				formatRecordedGround(frame.clientOnGround()),
 				frame.blocks().size()
 			));
 		}

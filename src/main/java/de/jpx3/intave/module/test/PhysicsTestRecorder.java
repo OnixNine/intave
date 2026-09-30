@@ -72,7 +72,8 @@ public final class PhysicsTestRecorder extends Module {
 			user.meta().abilities().attributeSnapshot(),
 			movement.gliding,
 			movement.pose(),
-			frameState
+			frameState,
+			reader.onGround()
 		);
 		ActionBar.sendActionBar(user.player(), movementRecording.frameCount() + " frames, " + movementRecording.actions().size() + " actions, " + movementRecording.collisionShapes().size() + " block-types");
 	}
