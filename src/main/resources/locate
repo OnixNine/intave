@@ -153,34 +153,19 @@ Entity -> {
   [1.17-26.3.0] -> "net/minecraft/world/entity/Entity"
   fields {
     [1.17-1.17.9] -> {
-      "yaw" -> "ay"
-      "pitch" -> "az"
       "onGround" -> "z"
     }
     [1.18-1.18.9] -> {
-      "yaw" -> "aA"
-      "pitch" -> "aB"
       "onGround" -> "z"
     }
     [1.19-1.19.3] -> {
-      "yaw" -> "aA"
-      "pitch" -> "aB"
       "onGround" -> "y"
     }
     1.19.4 -> {
-      "yaw" -> "aE"
-      "pitch" -> "aF"
       "onGround" -> "N"
     }
     [1.20-1.20.4] -> {
-      "yaw" -> "aG"
-      "pitch" -> "aH"
       "onGround" -> "aJ"
-    }
-    [1.21-26.3.0] -> {
-      "yaw" -> "yRot"
-      "pitch" -> "xRot"
-      "onGround" -> "onGround"
     }
     [1.17-1.18.1] -> {
       "entityCount" -> "b"
@@ -316,7 +301,6 @@ EntityPlayer -> {
     }
     [1.21-26.3.0] -> {
       "playerConnection" -> "connection"
-      "inventory" -> "inventory"
     }
   }
   methods {
@@ -347,9 +331,6 @@ EntityPlayer -> {
     [1.20.3-1.20.4] -> {
       "getInventory()RPlayerInventory;" -> "fS()RPlayerInventory;"
     }
-    [1.21-26.3.0] -> {
-      "getInventory()RPlayerInventory;" -> "getInventory()RPlayerInventory;"
-    }
   }
 }
 
@@ -367,8 +348,6 @@ Fluid -> {
       "isEmpty()Z" -> "c()Z"
     }
     [1.21-26.3.0] -> {
-      "isSource()Z" -> "isSource()Z"
-      "isEmpty()Z" -> "isEmpty()Z"
       "d()F" -> "getOwnHeight()F"
     }
   }
@@ -429,7 +408,6 @@ IBlockData -> {
       "getStateMap()Lcom/google/common/collect/ImmutableMap;" -> "C()Lcom/google/common/collect/ImmutableMap;"
     }
     [1.21-26.3.0] -> {
-      "getBlock()RBlock;" -> "getBlock()RBlock;"
       "getStateMap()Ljava/util/Map;" -> "getValues()Ljava/util/Map;"
       "get(RIBlockState;)Ljava/lang/Comparable;" -> "getValue(RIBlockState;)Ljava/lang/Comparable;"
     }
@@ -447,12 +425,10 @@ IBlockState -> {
     }
     [1.21-1.21.2] -> {
       "getType()Ljava/lang/Class;" -> "getValueClass()Ljava/lang/Class;"
-      "getName()Ljava/lang/String;" -> "getName()Ljava/lang/String;"
       "getValues()Ljava/util/Collection;" -> "getPossibleValues()Ljava/util/Collection;"
     }
     [1.21.3-26.3.0] -> {
       "getType()Ljava/lang/Class;" -> "getValueClass()Ljava/lang/Class;"
-      "getName()Ljava/lang/String;" -> "getName()Ljava/lang/String;"
       "getValues()Ljava/util/Collection;" -> "getPossibleValues()Ljava/util/List;"
     }
   }
