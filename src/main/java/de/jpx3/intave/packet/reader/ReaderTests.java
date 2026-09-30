@@ -278,11 +278,7 @@ public final class ReaderTests extends IntegrationTests {
 
     PacketContainer score;
     if (MinecraftVersions.VER1_20_3.atOrAbove()) {
-      Class<?> scoreType = PacketType.Play.Server.SCOREBOARD_SCORE.getPacketClass();
-      Object displayName = com.comphenix.protocol.wrappers.WrappedChatComponent.fromText("Visible entry").getHandle();
-      Object handle = scoreType.getConstructor(String.class, String.class, int.class, Optional.class, Optional.class)
-        .newInstance("Entry", "reader", 42, Optional.of(displayName), Optional.empty());
-      score = new PacketContainer(PacketType.Play.Server.SCOREBOARD_SCORE, handle);
+      score = nativeScorePacket("Visible entry");
     } else {
       score = new PacketContainer(PacketType.Play.Server.SCOREBOARD_SCORE);
       score.getStrings().write(0, "Entry").write(1, "reader");
@@ -298,6 +294,14 @@ public final class ReaderTests extends IntegrationTests {
       if (MinecraftVersions.VER1_20_3.atOrAbove()) assertEquals("Visible entry", plainScoreboardText(decoded.displayName));
     }
     if (MinecraftVersions.VER1_20_3.atOrAbove()) {
+      try (ScoreboardReader reader = PacketReaders.readerOf(nativeScorePacket(null))) {
+        ScoreboardReader.Score decoded = reader.score();
+        assertEquals("Entry", decoded.owner);
+        assertEquals("reader", decoded.objective);
+        assertEquals(42, decoded.value);
+        assertFalse(decoded.remove);
+        assertNull(decoded.displayName);
+      }
       Class<?> resetType = PacketType.Play.Server.RESET_SCORE.getPacketClass();
       for (String name : Arrays.asList("reader", null)) {
         Object handle = resetType.getConstructor(String.class, String.class).newInstance("Entry", name);
@@ -317,6 +321,29 @@ public final class ReaderTests extends IntegrationTests {
         assertTrue(reader.score().remove);
       }
     }
+  }
+
+  private static PacketContainer nativeScorePacket(String displayName) throws ReflectiveOperationException {
+    Class<?> scoreType = PacketType.Play.Server.SCOREBOARD_SCORE.getPacketClass();
+    Object component = com.comphenix.protocol.wrappers.WrappedChatComponent
+      .fromText(displayName == null ? "" : displayName).getHandle();
+    for (java.lang.reflect.Constructor<?> constructor : scoreType.getConstructors()) {
+      Class<?>[] parameters = constructor.getParameterTypes();
+      if (parameters.length != 5 || parameters[0] != String.class
+        || parameters[1] != String.class || parameters[2] != int.class) continue;
+      Object display = displayName == null ? null : component;
+      Object format = null;
+      if (parameters[3] == Optional.class && parameters[4] == Optional.class) {
+        display = Optional.ofNullable(display);
+        format = Optional.empty();
+      } else if (!parameters[3].isInstance(component) || parameters[4].isPrimitive()) {
+        continue;
+      }
+      // 1.20.3/4 use nullable fields; 1.20.5+ wrap them in Optional.
+      Object handle = constructor.newInstance("Entry", "reader", 42, display, format);
+      return new PacketContainer(PacketType.Play.Server.SCOREBOARD_SCORE, handle);
+    }
+    throw new NoSuchMethodException("Unsupported native scoreboard score constructor: " + scoreType.getName());
   }
 
   private static Object scoreboardHandle(Object value) throws ReflectiveOperationException {

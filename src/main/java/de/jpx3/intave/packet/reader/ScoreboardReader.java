@@ -154,7 +154,11 @@ public final class ScoreboardReader extends AbstractPacketReader {
 
   private String optionalComponent() {
     Optional<?> optional = packet().getSpecificModifier(Optional.class).readSafely(0);
-    if (optional == null || !optional.isPresent()) {
+    if (optional == null) {
+      // 1.20.3/4 store the score display name as a nullable component.
+      return component(packet().getChatComponents().readSafely(0));
+    }
+    if (!optional.isPresent()) {
       return null;
     }
     try {
