@@ -74,6 +74,100 @@ class TeleportConfirmationTest {
     assertEquals(1, movement.ticksPast(TELEPORT));
   }
 
+  @Test
+  void rejectsNonFiniteYawInCombinedAccept() {
+    for (float yaw : new float[] {Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY}) {
+      assertRejectedCombinedAccept(new PositionAndRotation(TARGET, new Rotation(yaw, 20)));
+    }
+  }
+
+  @Test
+  void rejectsNonFinitePitchInCombinedAccept() {
+    for (float pitch : new float[] {Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY}) {
+      assertRejectedCombinedAccept(new PositionAndRotation(TARGET, new Rotation(90, pitch)));
+    }
+  }
+
+  @Test
+  void rejectsNonFinitePositionInCombinedAccept() {
+    for (double coordinate : new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+      assertRejectedCombinedAccept(new PositionAndRotation(coordinate, TARGET.getY(), TARGET.getZ(), 90, 20));
+      assertRejectedCombinedAccept(new PositionAndRotation(TARGET.getX(), coordinate, TARGET.getZ(), 90, 20));
+      assertRejectedCombinedAccept(new PositionAndRotation(TARGET.getX(), TARGET.getY(), coordinate, 90, 20));
+    }
+  }
+
+  private void assertRejectedCombinedAccept(PositionAndRotation acceptedState) {
+    setup(ProtocolMetadata.VER_26_3);
+    Position previousPosition = movement.verifiedLastPosition();
+    int previousTeleportId = movement.lastTeleportAcceptId;
+    controller.movementCorrection(user, PositionMoveRotation.withoutRotation(TARGET, Motion.newEmpty()));
+    Teleport pending = movement.pendingTeleports.get().peekFirst();
+
+    controller.receiveTeleportAccept(user, pending.id().getAsInt(), acceptedState);
+
+    assertFalse(pending.wasAccepted(), acceptedState.toString());
+    assertSame(pending, movement.pendingTeleports.get().peekFirst());
+    assertTrue(movement.inRecovery);
+    assertFalse(movement.sentTeleportIdBefore);
+    assertEquals(previousTeleportId, movement.lastTeleportAcceptId);
+    assertEquals(previousPosition, movement.verifiedLastPosition());
+    assertEquals(new Rotation(60, 10), movement.rotation());
+    assertEquals(Rotation.zero(), movement.lastRotation());
+    assertEquals(100, movement.ticksPast(TELEPORT));
+    assertEquals(100, movement.ticksPast(LONG_TELEPORT));
+
+    // A malformed response must leave the pending correction available to confirm.
+    confirm(new Rotation(75, 15));
+    assertFalse(movement.inRecovery);
+    assertEquals(new Rotation(75, 15), movement.rotation());
+    assertEquals(new Rotation(75, 15), movement.lastRotation());
+    assertEquals(0, movement.ticksPast(TELEPORT));
+    assertEquals(0, movement.ticksPast(LONG_TELEPORT));
+  }
+
+  @Test
+  void twentyBlockTeleportDoesNotResetLongTeleportMetric() {
+    setup(ProtocolMetadata.VER_26_3);
+    Position nearby = new Position(20, 70, 0);
+    controller.teleport(user, PositionMoveRotation.withoutMotion(nearby, Rotation.zero()), EnumSet.noneOf(Relative.class));
+    Teleport pending = movement.pendingTeleports.get().peekFirst();
+    controller.receiveTeleportAccept(user, pending.id().getAsInt(), new PositionAndRotation(nearby, Rotation.zero()));
+    assertTrue(pending.wasAccepted());
+    assertEquals(0, movement.ticksPast(TELEPORT));
+    assertEquals(100, movement.ticksPast(LONG_TELEPORT));
+  }
+
+  @Test
+  void mismatchedAcknowledgementDoesNotResetMetricsOrRotation() {
+    setup(ProtocolMetadata.VER_26_3);
+    controller.teleport(user, PositionMoveRotation.withoutMotion(TARGET, Rotation.zero()), EnumSet.noneOf(Relative.class));
+    Teleport pending = movement.pendingTeleports.get().peekFirst();
+    controller.receiveTeleportAccept(user, pending.id().getAsInt() + 1, new PositionAndRotation(TARGET, Rotation.zero()));
+    assertFalse(pending.wasAccepted());
+    assertSame(pending, movement.pendingTeleports.get().peekFirst());
+    assertEquals(100, movement.ticksPast(TELEPORT));
+    assertEquals(100, movement.ticksPast(LONG_TELEPORT));
+    assertEquals(new Rotation(60, 10), movement.rotation());
+  }
+
+  @Test
+  void idOnlyAcknowledgementStillWaitsForMovementConfirmation() {
+    // Older server runtimes may expose only the ID, even for translated modern clients.
+    for (int protocolVersion : new int[] {774, ProtocolMetadata.VER_26_3}) {
+      setup(protocolVersion);
+      controller.teleport(user, PositionMoveRotation.withoutMotion(TARGET, Rotation.zero()), EnumSet.noneOf(Relative.class));
+      Teleport pending = movement.pendingTeleports.get().peekFirst();
+      controller.receiveTeleportAccept(user, pending.id().getAsInt(), null);
+      assertFalse(pending.wasAccepted());
+      assertSame(pending, movement.pendingTeleports.get().peekFirst());
+      assertTrue(movement.sentTeleportIdBefore);
+      assertEquals(pending.id().getAsInt(), movement.lastTeleportAcceptId);
+      assertTrue(controller.confirmTeleport(user, TARGET, Rotation.zero()));
+      assertTrue(movement.pendingTeleports.get().isEmpty());
+    }
+  }
+
   private void confirm(Rotation rotation) {
     Teleport pending = movement.pendingTeleports.get().peekFirst();
     int id = pending.id().orElse(0);

@@ -169,6 +169,10 @@ public final class TeleportController implements PacketEventSubscriber {
 	}
 
 	void receiveTeleportAccept(User user, int teleportId, PositionAndRotation acceptedState) {
+		// Combined acknowledgements bypass the movement packet's finite-value check.
+		if (acceptedState != null && !acceptedState.isFinite()) {
+			return;
+		}
 		MovementMetadata movementData = user.meta().movement();
 		movementData.lastTeleportAcceptId = teleportId;
 		movementData.sentTeleportIdBefore = true;
