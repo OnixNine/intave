@@ -60,6 +60,11 @@ public final class UserLocal<T> {
       GarbageCollector.subscribeToRemoval(id, () -> finalizer.accept(user));
       finalizerSet = true;
     }
+    // Avoid computeIfAbsent's locking on the common read path.
+    T cached = map.get(id);
+    if (cached != null) {
+      return cached;
+    }
     return map.computeIfAbsent(id, uuid -> initializer.apply(user));
   }
 

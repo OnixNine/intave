@@ -235,6 +235,11 @@ final class PlayerUser implements User {
     Class<? extends CheckCustomMetadata> metaClass,
     Function<? super User, ? extends CheckCustomMetadata> generator
   ) {
+    // Avoid computeIfAbsent's locking on the common read path.
+    CheckCustomMetadata cached = metadataPool.get(metaClass);
+    if (cached != null) {
+      return cached;
+    }
     return metadataPool.computeIfAbsent(metaClass, key -> generator.apply(this));
   }
 

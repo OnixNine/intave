@@ -153,6 +153,12 @@ registerBenchmarkTask(
   "de.jpx3.intave.benchmark.SimulatorMemoryBenchmark",
 )
 
+registerBenchmarkTask(
+  "benchmarkReplacementCache",
+  "Compares replacement cache implementations under sustained concurrent load in isolated JVMs.",
+  "de.jpx3.intave.block.cache.BlockReplacementCacheBenchmark",
+)
+
 /*
  * plugin.yml
  */
