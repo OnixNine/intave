@@ -62,6 +62,7 @@ public final class InventoryMetadata {
   private Material activeItemType;
   private List<String> items = new ArrayList<>();
   private boolean foodItem;
+  private volatile String itemUsePermissionDebug = "UNKNOWN";
   public int lastBlockSequenceNumber;
 
   public InventoryMetadata(Player player, User user) {
@@ -75,6 +76,14 @@ public final class InventoryMetadata {
 
   public boolean handActive() {
     return handActive;
+  }
+
+  public String itemUsePermissionDebug() {
+    return itemUsePermissionDebug;
+  }
+
+  public void itemUsePermissionDebug(String permission) {
+    itemUsePermissionDebug = permission;
   }
 
   public EnumWrappers.Hand activeHand() {
@@ -323,7 +332,7 @@ public final class InventoryMetadata {
     }
     if (inventoryOpen != this.inventoryOpen) {
       releaseItemNextTick();
-      if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+      if (user.receives(MessageChannel.DEBUG_ITEM_USE)) {
         user.sendMessage(IntavePlugin.prefix() + "Requesting item usage reset as " + ChatColor.RED + " inventory was toggled ");
       }
     }

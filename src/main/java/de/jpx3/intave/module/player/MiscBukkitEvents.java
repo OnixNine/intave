@@ -179,7 +179,7 @@ public final class MiscBukkitEvents extends Module {
       if (applyArrowBlock) {
         event.setCancelled(true);
       }
-      if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+      if (user.receives(MessageChannel.DEBUG_ITEM_USE)) {
         user.sendMessage(IntavePlugin.prefix() + " Cancelled your arrow shot to sync with the server");
       }
       inventory.blockNextArrow = false;

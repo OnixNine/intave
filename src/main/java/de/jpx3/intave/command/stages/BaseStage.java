@@ -207,8 +207,7 @@ public final class BaseStage extends CommandStage {
   public enum DebugType {
     TELEPORT(MessageChannel.DEBUG_TELEPORT),
     MOUNTS(MessageChannel.DEBUG_MOUNTS),
-    ITEM_RESETS(MessageChannel.DEBUG_ITEM_RESETS),
-    NO_SLOWDOWN(MessageChannel.DEBUG_NO_SLOWDOWN),
+    ITEM_USE(MessageChannel.DEBUG_ITEM_USE),
     BLOCK_CACHE(MessageChannel.DEBUG_BLOCK_CACHE),
     POSITION(MessageChannel.DEBUG_POSITION),
     REACH(MessageChannel.DEBUG_REACH),

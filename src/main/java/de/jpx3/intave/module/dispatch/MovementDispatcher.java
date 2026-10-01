@@ -633,7 +633,7 @@ public final class MovementDispatcher extends Module {
   }
 
   private void releaseItem(User user) {
-    if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+    if (user.receives(MessageChannel.DEBUG_ITEM_USE)) {
       user.sendMessage(IntavePlugin.prefix() + "Applying item usage reset as requested");
     }
     Player player = user.player();
@@ -642,7 +642,7 @@ public final class MovementDispatcher extends Module {
     if (ItemProperties.isBow(inventory.releaseItemType) || ItemProperties.isBow(inventory.activeItemType())) {
       inventory.blockNextArrow = true;
       inventory.lastBlockArrowRequest = System.currentTimeMillis();
-      if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+      if (user.receives(MessageChannel.DEBUG_ITEM_USE)) {
         user.sendMessage(IntavePlugin.prefix() + "Requesting arrow block as player is also holding a bow on item usage reset");
       }
     }

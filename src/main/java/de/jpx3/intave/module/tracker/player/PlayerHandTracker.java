@@ -129,7 +129,7 @@ public class PlayerHandTracker extends Module {
       if (!ItemProperties.canItemBeUsed(user, itemStack)) {
         inventoryData.blockNextArrow = true;
         inventoryData.lastBlockArrowRequest = System.currentTimeMillis();
-        if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+        if (user.receives(MessageChannel.DEBUG_ITEM_USE)) {
           user.sendMessage(IntavePlugin.prefix() + " Detected item switch on active item, released hand and blocking impending arrow shot");
         }
       }

@@ -34,6 +34,7 @@ public final class MovementSearchInput {
   private @Nullable Boolean usableItemInEitherHandOrHotbar;
   private @Nullable Boolean couldChargeCrossbow;
   private @Nullable List<TickAmbiguousUpdate> sortedPossibleTickAmbiguousUpdates;
+  private boolean itemUseDebugUpdated;
 
   private MovementSearchInput(User user, Simulator simulator, SimulationEnvironment environment, boolean detectNoSlowdown, TraceImmutableMovementConfiguration tracedAfterTickMovementConfig) {
     this.user = user;
@@ -105,6 +106,14 @@ public final class MovementSearchInput {
       couldChargeCrossbow = user.meta().inventory().couldChargeCrossbow();
     }
     return couldChargeCrossbow;
+  }
+
+  boolean shouldUpdateItemUseDebug() {
+    if (itemUseDebugUpdated) {
+      return false;
+    }
+    itemUseDebugUpdated = true;
+    return true;
   }
 
   boolean jumpingBranchNecessary() {

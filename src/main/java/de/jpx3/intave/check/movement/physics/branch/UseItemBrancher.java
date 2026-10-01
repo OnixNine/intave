@@ -12,6 +12,7 @@
 package de.jpx3.intave.check.movement.physics.branch;
 
 import de.jpx3.intave.check.movement.physics.environment.SimulationEnvironment;
+import de.jpx3.intave.user.MessageChannel;
 import de.jpx3.intave.user.meta.InventoryMetadata;
 import de.jpx3.intave.user.meta.ProtocolMetadata;
 import org.bukkit.Material;
@@ -29,6 +30,9 @@ final class UseItemBrancher extends MovementSearchBrancher {
     InventoryMetadata inventoryData = input.user().meta().inventory();
     ProtocolMetadata protocol = input.user().meta().protocol();
     UseItemRequirement requirement = useItemRequirement(input, inputBranch);
+    if (input.user().receives(MessageChannel.DEBUG_ITEM_USE) && input.shouldUpdateItemUseDebug()) {
+      inventoryData.itemUsePermissionDebug(requirement.name());
+    }
     int numOutputBranches = 0;
     for (boolean useItemState : inventoryData.handActive() ? OPTIMISTIC : PESSIMISTIC) {
       if (!requirement.allows(useItemState)) {

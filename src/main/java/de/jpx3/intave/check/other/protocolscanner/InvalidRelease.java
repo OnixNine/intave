@@ -58,7 +58,7 @@ public final class InvalidRelease extends CheckPart<ProtocolScanner> {
 				InventoryMetadata inventory = user.meta().inventory();
 				inventory.lastFoodConsumptionBlockRequest = System.currentTimeMillis();
 				inventory.releaseItemNextTick();
-				if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+				if (user.receives(MessageChannel.DEBUG_ITEM_USE)) {
 					user.sendMessage(IntavePlugin.prefix() + "Requesting item usage reset because of " + ChatColor.RED + "an invalid release packet");
 				}
 			}

@@ -63,6 +63,7 @@ import de.jpx3.intave.module.tracker.player.PacketLogging;
 import de.jpx3.intave.module.violation.Violation;
 import de.jpx3.intave.module.violation.ViolationContext;
 import de.jpx3.intave.packet.PacketSender;
+import de.jpx3.intave.player.ActionBar;
 import de.jpx3.intave.player.FaultKicks;
 import de.jpx3.intave.player.ItemProperties;
 import de.jpx3.intave.player.collider.Colliders;
@@ -1283,7 +1284,8 @@ public final class Physics extends Check {
   }
 
   private void checkNoSlowdownState(User user, TickSearch search) {
-    if (!resetItemUsage) {
+    boolean debugItemUse = user.receives(MessageChannel.DEBUG_ITEM_USE);
+    if (!resetItemUsage && !debugItemUse) {
       return;
     }
 
@@ -1293,7 +1295,6 @@ public final class Physics extends Check {
 
     boolean movementProvesHandIsInactive = search.itemUseImpossible(0.001);
     boolean packetsSuggestsHandIsActive = inventoryData.handActive();
-    boolean debugNoSlowdown = user.receives(MessageChannel.DEBUG_NO_SLOWDOWN);
     if (packetsSuggestsHandIsActive && movementProvesHandIsInactive) {
       double horizontalSpeed = Hypot.fast(movementData.offsetMotionX(), movementData.offsetMotionZ());
       int ticksSinceTeleport = movementData.ticksPast(TELEPORT);
@@ -1302,26 +1303,31 @@ public final class Physics extends Check {
       boolean viaVersionBlockReplacement = meta.protocol().viaVersionShieldBlockReplacement();
       boolean ignoredSlowdown = releaseHandConditions && (!itemIsBow || (inventoryData.handActiveTicks > 3 && !viaVersionBlockReplacement));
 
-      if (debugNoSlowdown) {
-        boolean requestsReset = ignoredSlowdown && movementData.handItemSimulationFails > 1;
-        user.sendMessage(IntavePlugin.prefix() + "No slowdown: active=true, impossible=true, speed="
-          + MathHelper.formatDouble(horizontalSpeed, 4) + ", teleportTicks=" + ticksSinceTeleport
-          + ", bow=" + itemIsBow + ", activeTicks=" + inventoryData.handActiveTicks
-          + ", viaShield=" + viaVersionBlockReplacement + ", release=" + releaseHandConditions
-          + ", ignored=" + ignoredSlowdown
-          + ", fails=" + movementData.handItemSimulationFails + ", reset=" + requestsReset);
+      if (debugItemUse && user.hasPlayer()) {
+        boolean requestsReset = resetItemUsage && ignoredSlowdown && movementData.handItemSimulationFails > 1;
+        ActionBar.sendActionBar(user.player(), ChatColor.GOLD + "Item use " + ChatColor.GRAY
+          + "| perm=" + inventoryData.itemUsePermissionDebug() + " active=true impossible=true"
+          + " speed=" + MathHelper.formatDouble(horizontalSpeed, 4) + " tp=" + ticksSinceTeleport
+          + " bow=" + itemIsBow + " activeTicks=" + inventoryData.handActiveTicks
+          + " viaShield=" + viaVersionBlockReplacement + " release=" + releaseHandConditions
+          + " ignored=" + ignoredSlowdown + " fails=" + movementData.handItemSimulationFails
+          + " reset=" + requestsReset);
       }
 
-      if (ignoredSlowdown && movementData.handItemSimulationFails++ > 1) {
+      if (resetItemUsage && ignoredSlowdown && movementData.handItemSimulationFails++ > 1) {
         meta.inventory().releaseItemNextTick();
 
-        if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+        if (debugItemUse) {
           user.sendMessage(IntavePlugin.prefix() + "Requesting item usage reset as " + ChatColor.RED + "movement/state discrepancy ");
         }
       }
-    } else if (debugNoSlowdown) {
-      user.sendMessage(IntavePlugin.prefix() + "No slowdown: active=" + packetsSuggestsHandIsActive
-        + ", impossible=" + movementProvesHandIsInactive);
+    } else if (debugItemUse && user.hasPlayer()) {
+      ActionBar.sendActionBar(user.player(), ChatColor.GOLD + "Item use " + ChatColor.GRAY
+        + "| perm=" + inventoryData.itemUsePermissionDebug()
+        + " active=" + packetsSuggestsHandIsActive
+        + " impossible=" + movementProvesHandIsInactive
+        + " activeTicks=" + inventoryData.handActiveTicks
+        + " fails=" + movementData.handItemSimulationFails);
     }
   }
 

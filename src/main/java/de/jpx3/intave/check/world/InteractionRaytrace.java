@@ -837,7 +837,7 @@ public final class InteractionRaytrace extends MetaCheck<InteractionRaytrace.Int
       if (usableItemInHand && interaction.type() == InteractionType.INTERACT) {
         meta.inventory().releaseItemNextTick();
 
-        if (user.receives(MessageChannel.DEBUG_ITEM_RESETS)) {
+        if (user.receives(MessageChannel.DEBUG_ITEM_USE)) {
           user.sendMessage(IntavePlugin.prefix() + "Requesting item usage reset as " + ChatColor.RED + "raytrace failed ");
         }
       }
