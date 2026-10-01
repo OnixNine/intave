@@ -43,23 +43,37 @@ class CopyOnWriteArrayLocalBlockStoreTest {
 		CopyOnWriteArrayLocalBlockStore store = CopyOnWriteArrayLocalBlockStore.of();
 		assertTrue(store.put(0, 0, 0, BlockState.stone()));
 
-		// This lookup must be outside the 384-block-tall store. Its sector index used to be 12425.
-		assertNull(store.get(8, 320, 0));
+		assertNull(store.get(8, 64, 0));
 	}
 
 	@Test
 	public void testVerticalBoundaries() {
 		CopyOnWriteArrayLocalBlockStore store = CopyOnWriteArrayLocalBlockStore.of();
+		assertTrue(store.put(0, 0, 0, BlockState.stone()));
 		assertTrue(store.put(0, -64, 0, BlockState.stone()));
-		assertTrue(store.put(0, 319, 0, BlockState.stone()));
+		assertTrue(store.put(0, 63, 0, BlockState.stone()));
 
 		assertEquals(BlockState.stone(), store.get(0, -64, 0));
-		assertEquals(BlockState.stone(), store.get(0, 319, 0));
+		assertEquals(BlockState.stone(), store.get(0, 63, 0));
 		assertFalse(store.put(0, -65, 0, BlockState.stone()));
-		assertFalse(store.put(0, 320, 0, BlockState.stone()));
+		assertFalse(store.put(0, 64, 0, BlockState.stone()));
 		assertNull(store.get(0, -65, 0));
-		assertNull(store.get(0, 320, 0));
-		assertEquals(2, store.size());
+		assertNull(store.get(0, 64, 0));
+		assertEquals(3, store.size());
+	}
+
+	@Test
+	public void testVerticalWindowCanBeCenteredAtExtendedWorldHeights() {
+		CopyOnWriteArrayLocalBlockStore store = CopyOnWriteArrayLocalBlockStore.of();
+		assertTrue(store.put(0, -3000, 0, BlockState.stone()));
+		assertEquals(BlockState.stone(), store.get(0, -3000, 0));
+		assertTrue(store.put(0, -2999, 0, BlockState.empty()));
+		assertEquals(BlockState.empty(), store.get(0, -2999, 0));
+
+		store.clear();
+
+		assertTrue(store.put(0, 3000, 0, BlockState.stone()));
+		assertEquals(BlockState.stone(), store.get(0, 3000, 0));
 	}
 
 	@Test
@@ -67,10 +81,10 @@ class CopyOnWriteArrayLocalBlockStoreTest {
 		CopyOnWriteArrayLocalBlockStore store = CopyOnWriteArrayLocalBlockStore.of();
 		assertTrue(store.put(0, 0, 0, BlockState.stone()));
 		assertTrue(store.put(-64, -64, -64, BlockState.stone()));
-		assertTrue(store.put(63, 319, 63, BlockState.stone()));
+		assertTrue(store.put(63, 63, 63, BlockState.stone()));
 
 		assertEquals(BlockState.stone(), store.get(-64, -64, -64));
-		assertEquals(BlockState.stone(), store.get(63, 319, 63));
+		assertEquals(BlockState.stone(), store.get(63, 63, 63));
 		assertFalse(store.put(-65, 0, 0, BlockState.stone()));
 		assertFalse(store.put(64, 0, 0, BlockState.stone()));
 		assertFalse(store.put(0, 0, -65, BlockState.stone()));
@@ -119,7 +133,7 @@ class CopyOnWriteArrayLocalBlockStoreTest {
 	@Test
 	public void testConcurrentDistinctWritesPreserveAllEntries() throws Exception {
 		CopyOnWriteArrayLocalBlockStore store = CopyOnWriteArrayLocalBlockStore.of();
-		assertTrue(store.put(0, 0, 0, BlockState.stone()));
+		assertTrue(store.put(8, 0, 0, BlockState.stone()));
 
 		int writerCount = 8;
 		int writesPerWriter = 64;
@@ -138,7 +152,7 @@ class CopyOnWriteArrayLocalBlockStoreTest {
 						Thread.currentThread().interrupt();
 						throw new AssertionError(exception);
 					}
-					for (int y = 1; y <= writesPerWriter; y++) {
+					for (int y = 0; y < writesPerWriter; y++) {
 						assertTrue(store.put(x, y, 0, BlockState.stone()));
 					}
 				});
@@ -151,7 +165,7 @@ class CopyOnWriteArrayLocalBlockStoreTest {
 
 			assertEquals(1 + writerCount * writesPerWriter, store.size());
 			for (int x = 0; x < writerCount; x++) {
-				for (int y = 1; y <= writesPerWriter; y++) {
+				for (int y = 0; y < writesPerWriter; y++) {
 					assertEquals(BlockState.stone(), store.get(x, y, 0));
 				}
 			}

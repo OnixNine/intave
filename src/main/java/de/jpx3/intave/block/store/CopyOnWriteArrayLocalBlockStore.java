@@ -18,11 +18,10 @@ import java.util.function.Predicate;
 
 public final class CopyOnWriteArrayLocalBlockStore implements BlockStore {
 	private static final int X_SECTORS = 16;
-	private static final int Y_SECTORS = 48;
+	private static final int Y_SECTORS = 16;
 	private static final int Z_SECTORS = 16;
-	private static final int MIN_Y_SECTOR = -8;
 	private static final int BLOCKS_PER_SECTOR = 512;
-	private static final Snapshot EMPTY = new Snapshot(null, 0, 0, 0);
+	private static final Snapshot EMPTY = new Snapshot(null, 0, 0, 0, 0);
 
 	private final AtomicReference<Snapshot> snapshot = new AtomicReference<>(EMPTY);
 
@@ -44,9 +43,10 @@ public final class CopyOnWriteArrayLocalBlockStore implements BlockStore {
 		while (true) {
 			Snapshot current = snapshot.get();
 			int sectorCenterX = current.size == 0 ? x >> 3 : current.sectorCenterX;
+			int sectorCenterY = current.size == 0 ? y >> 3 : current.sectorCenterY;
 			int sectorCenterZ = current.size == 0 ? z >> 3 : current.sectorCenterZ;
 			int offsetSectorX = (x >> 3) - sectorCenterX + (X_SECTORS / 2);
-			int offsetSectorY = (y >> 3) - MIN_Y_SECTOR;
+			int offsetSectorY = (y >> 3) - sectorCenterY + (Y_SECTORS / 2);
 			int offsetSectorZ = (z >> 3) - sectorCenterZ + (Z_SECTORS / 2);
 			if (outsideSectorBounds(offsetSectorX, offsetSectorY, offsetSectorZ)) {
 				return false;
@@ -71,7 +71,7 @@ public final class CopyOnWriteArrayLocalBlockStore implements BlockStore {
 				? EMPTY
 				: new Snapshot(
 					copySectorsWith(current, offsetSectorX, offsetSectorY, offsetSectorZ, blockIndex, state),
-					sectorCenterX, sectorCenterZ, updatedSize
+					sectorCenterX, sectorCenterY, sectorCenterZ, updatedSize
 				);
 			if (snapshot.compareAndSet(current, updated)) {
 				return true;
@@ -108,7 +108,7 @@ public final class CopyOnWriteArrayLocalBlockStore implements BlockStore {
 			return null;
 		}
 		int offsetSectorX = (x >> 3) - snapshot.sectorCenterX + (X_SECTORS / 2);
-		int offsetSectorY = (y >> 3) - MIN_Y_SECTOR;
+		int offsetSectorY = (y >> 3) - snapshot.sectorCenterY + (Y_SECTORS / 2);
 		int offsetSectorZ = (z >> 3) - snapshot.sectorCenterZ + (Z_SECTORS / 2);
 		if (outsideSectorBounds(offsetSectorX, offsetSectorY, offsetSectorZ)) {
 			return null;
@@ -213,7 +213,11 @@ public final class CopyOnWriteArrayLocalBlockStore implements BlockStore {
 		}
 		return updatedSize == 0
 			? EMPTY
-			: new Snapshot(updatedSectors, current.sectorCenterX, current.sectorCenterZ, updatedSize);
+			: new Snapshot(
+				updatedSectors,
+				current.sectorCenterX, current.sectorCenterY, current.sectorCenterZ,
+				updatedSize
+			);
 	}
 
 	private static int blockIndexOf(int x, int y, int z) {
@@ -229,16 +233,18 @@ public final class CopyOnWriteArrayLocalBlockStore implements BlockStore {
 	private static final class Snapshot {
 		private final BlockState[][][][] sectors;
 		private final int sectorCenterX;
+		private final int sectorCenterY;
 		private final int sectorCenterZ;
 		private final int size;
 
 		private Snapshot(
 			BlockState[][][][] sectors,
-			int sectorCenterX, int sectorCenterZ,
+			int sectorCenterX, int sectorCenterY, int sectorCenterZ,
 			int size
 		) {
 			this.sectors = sectors;
 			this.sectorCenterX = sectorCenterX;
+			this.sectorCenterY = sectorCenterY;
 			this.sectorCenterZ = sectorCenterZ;
 			this.size = size;
 		}

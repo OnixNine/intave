@@ -42,22 +42,31 @@ import java.util.concurrent.ConcurrentHashMap;
 import static de.jpx3.intave.IntaveControl.DISABLE_BLOCK_CACHING_ENTIRELY;
 
 final class MultiChunkKeyBlockCache implements BlockCache {
+  private static final int CACHE_RESET_DISTANCE_CHUNKS = 2;
+
   private final Player player;
   private final ShapeResolverPipeline shapeResolver;
-  private final BlockStore blockCache = CopyOnWriteArrayLocalBlockStore.of();
+  private final BlockStore blockCache;
   private final Map<BlockPosition, BlockState> speculativeHeads = new ConcurrentHashMap<>(8);
   private final Map<BlockPosition, Integer> speculativeSequenceNumbers = new ConcurrentHashMap<>(8);
   private final HashSet<Long> speculationKeys = new HashSet<>(8);
 
   private final BlockStateReplacementCache replacementCache;
-  private int originChunkX, originChunkZ;
-  private int chunkX, chunkZ;
+  private int originChunkX, originChunkY, originChunkZ;
+  private int chunkX, chunkY, chunkZ;
 
   public MultiChunkKeyBlockCache(
     Player player, ShapeResolverPipeline resolver
   ) {
+    this(player, resolver, CopyOnWriteArrayLocalBlockStore.of());
+  }
+
+  MultiChunkKeyBlockCache(
+    Player player, ShapeResolverPipeline resolver, BlockStore blockCache
+  ) {
     this.player = player;
     this.shapeResolver = resolver;
+    this.blockCache = blockCache;
     this.replacementCache = new BlockStateReplacementCache(MultiChunkKeyBlockCache::bigKey);
   }
 
@@ -75,14 +84,25 @@ final class MultiChunkKeyBlockCache implements BlockCache {
     if (posY < WorldHeight.LOWER_WORLD_LIMIT || WorldHeight.UPPER_WORLD_LIMIT < posY) {
       return BlockState.empty();
     }
-    int chunkX = posX >> 4, chunkZ = posZ >> 4;
+    int chunkX = posX >> 4, chunkY = posY >> 4, chunkZ = posZ >> 4;
     ShapeAccessFlowStudy.requests++;
-    if ((chunkX != this.chunkX || chunkZ != this.chunkZ)) {
+    int cachedBlocks = blockCache.size();
+    if (cachedBlocks == 0) {
+      this.originChunkX = chunkX;
+      this.originChunkY = chunkY;
+      this.originChunkZ = chunkZ;
+    }
+    if (chunkX != this.chunkX || chunkY != this.chunkY || chunkZ != this.chunkZ) {
       this.chunkX = chunkX;
+      this.chunkY = chunkY;
       this.chunkZ = chunkZ;
-      double distance = Hypot.fast(chunkX - originChunkX, chunkZ - originChunkZ);
-      if (distance > 2 || blockCache.size() > 4096) {
+      double horizontalDistance = Hypot.fast(chunkX - originChunkX, chunkZ - originChunkZ);
+      int verticalDistance = Math.abs(chunkY - originChunkY);
+      if (horizontalDistance > CACHE_RESET_DISTANCE_CHUNKS
+        || verticalDistance > CACHE_RESET_DISTANCE_CHUNKS
+        || cachedBlocks > 4096) {
         this.originChunkX = chunkX;
+        this.originChunkY = chunkY;
         this.originChunkZ = chunkZ;
         blockCache.clear();
       }
