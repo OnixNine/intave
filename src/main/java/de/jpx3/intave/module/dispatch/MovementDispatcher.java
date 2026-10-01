@@ -398,7 +398,7 @@ public final class MovementDispatcher extends Module {
         user.kick("Missing position in movement packet");
         return;
       }
-      double distance = position.distance(movement.lastPosition());
+      double distance = position.distance(movement.verifiedLastPosition());
       if (distance < 0.00001) {
         movement.dropPostTickMotionProcessing = true;
         logging.logSystemMessage(user, () -> "MOVEMENT IGNORED: Click movement ignore distance: " + distance);
