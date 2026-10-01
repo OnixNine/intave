@@ -49,43 +49,37 @@ final class RecordEventSinkTest {
   }
 
   @Test
-  void splitsComplexUpdatesIntoConsecutiveReadableEvents() throws Exception {
+  void samplesWriterSplitsComplexUpdatesIntoConsecutiveReadableEvents() throws Exception {
     List<BlockUpdate> updates = updates(24, 40);
-
-    List<BlockUpdatesEvent> events = RecordEventSink.chunkBlockUpdates(updates);
-
-    assertTrue(events.size() > 1);
-    List<BlockUpdate> combined = new ArrayList<>();
     StringWriter output = new StringWriter();
     JsonWriter writer = new JsonWriter(output);
-    for (BlockUpdatesEvent event : events) {
-      assertTrue(
-        RecordEventSink.serializedCharacters(event) <=
-          RecordEventSink.EVENT_CHARACTER_BUDGET
-      );
-      combined.addAll(event.updates());
-      writer.visitAny(event);
-    }
-    assertEquals(updates, combined);
+    BlockUpdatesEvent updateEvent = new BlockUpdatesEvent(updates);
+    updateEvent.withOffset(17L);
+    writer.visitAny(updateEvent);
 
+    List<BlockUpdate> combined = new ArrayList<>();
     int decodedEvents = 0;
     try (JsonReader reader = new JsonReader(new StringReader(output.toString()))) {
       Event event;
       while ((event = reader.nextEvent()) != null) {
-        assertInstanceOf(BlockUpdatesEvent.class, event);
+        BlockUpdatesEvent decoded = assertInstanceOf(BlockUpdatesEvent.class, event);
+        assertEquals(decodedEvents == 0 ? 17L : 0L, decoded.offset());
+        combined.addAll(decoded.updates());
         decodedEvents++;
       }
     }
-    assertEquals(events.size(), decodedEvents);
+    assertTrue(decodedEvents > 1);
+    assertEquals(updates, combined);
   }
 
   @Test
-  void rejectsASingleUpdateThatCannotFit() {
+  void samplesWriterRejectsASingleUpdateThatCannotFit() {
     List<BlockUpdate> update = updates(1, 400);
+    JsonWriter writer = new JsonWriter(new StringWriter());
 
     assertThrows(
       IllegalArgumentException.class,
-      () -> RecordEventSink.chunkBlockUpdates(update)
+      () -> writer.visitAny(new BlockUpdatesEvent(update))
     );
   }
 

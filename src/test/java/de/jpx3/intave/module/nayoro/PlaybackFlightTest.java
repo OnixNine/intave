@@ -11,15 +11,55 @@
 
 package de.jpx3.intave.module.nayoro;
 
+import ac.intave.samples.event.FlyStateUpdateEvent;
 import ac.intave.samples.event.PlayerFlyToggleEvent;
 import ac.intave.samples.event.PlayerInitEvent;
 import ac.intave.samples.share.Position;
 import ac.intave.samples.share.Rotation;
+import org.bukkit.GameMode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 final class PlaybackFlightTest {
+  @Test
+  void appliesSnapshotsWithoutMergingClientAndServerObservations() {
+    PlaybackPlayerContainer playback = new PlaybackPlayerContainer(null);
+    FlyStateUpdateEvent denied = new FlyStateUpdateEvent(false, 0.05F, "SURVIVAL", true, false);
+    denied.accept(playback);
+    assertFalse(playback.flying());
+    assertTrue(playback.flightState().clientFlying());
+    assertFalse(playback.flightState().serverFlying());
+    assertFalse(playback.flightState().allowFlight());
+    assertEquals(0.05F, playback.flightState().flySpeed());
+    assertTrue(playback.inGameMode(GameMode.SURVIVAL));
+
+    new FlyStateUpdateEvent(true, 0.1F, "CREATIVE", false, true).accept(playback);
+    assertTrue(playback.flying());
+    assertFalse(playback.flightState().clientFlying());
+    assertTrue(playback.inGameMode(GameMode.CREATIVE));
+    assertFalse(playback.inGameMode(GameMode.SURVIVAL));
+  }
+
+  @Test
+  void unknownSnapshotValuesClearEarlierStateAndDoNotInferFlight() {
+    PlaybackPlayerContainer playback = new PlaybackPlayerContainer(null);
+    playback.visit(new PlayerFlyToggleEvent(true));
+    new FlyStateUpdateEvent(true, 0.1F, "SPECTATOR", null, null).accept(playback);
+    assertFalse(playback.flying());
+
+    new FlyStateUpdateEvent(null, null, null, true, null).accept(playback);
+    assertTrue(playback.flying());
+    assertNull(playback.flightState().allowFlight());
+    assertNull(playback.flightState().flySpeed());
+    assertNull(playback.flightState().serverFlying());
+    assertFalse(playback.inGameMode(GameMode.SPECTATOR));
+
+    new FlyStateUpdateEvent().accept(playback);
+    assertFalse(playback.flying());
+    assertNull(playback.flightState().clientFlying());
+  }
+
   @Test
   void appliesInitialFlightStateAndSubsequentToggles() {
     PlaybackPlayerContainer playback = new PlaybackPlayerContainer(null);

@@ -11,7 +11,6 @@
 
 package de.jpx3.intave.module.tracker.player;
 
-import ac.intave.samples.event.PlayerFlyToggleEvent;
 import de.jpx3.intave.adapter.MinecraftVersion;
 import de.jpx3.intave.adapter.MinecraftVersions;
 import de.jpx3.intave.packet.reader.AbilityInReader;
@@ -25,30 +24,22 @@ import org.bukkit.World;
 import org.bukkit.event.Cancellable;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 final class AbilityTrackerFlightTest {
   @Test
-  void recordsClientTogglesWithoutWaitingForAServerEcho() {
+  void acknowledgesClientTogglesWithoutWaitingForAServerEcho() {
     User user = user();
     AbilityMetadata abilities = user.meta().abilities();
     abilities.setAllowFlying(true);
-    List<PlayerFlyToggleEvent> events = new ArrayList<>();
-    AbilityTracker tracker = new AbilityTracker((recipient, event) -> {
-      assertSame(user, recipient);
-      events.add(event);
-    });
+    AbilityTracker tracker = new AbilityTracker();
 
     toggle(tracker, user, true, false);
     toggle(tracker, user, true, false);
     assertTrue(abilities.flying());
     assertTrue(abilities.acknowledgedFlying());
-    assertEquals(1, events.size());
-    assertTrue(events.get(0).isFlying());
     assertFalse(abilities.acknowledgeFlying(true), "A later server echo must not duplicate the toggle");
 
     toggle(tracker, user, false, false);
@@ -56,21 +47,17 @@ final class AbilityTrackerFlightTest {
     assertTrue(abilities.flying(), "Keep predicted flight until the existing tick boundary");
     abilities.tickComplete();
     assertFalse(abilities.flying());
-    assertEquals(2, events.size());
-    assertFalse(events.get(1).isFlying());
   }
 
   @Test
   void ignoresDisallowedAndCancelledRequests() {
     User user = user();
-    List<PlayerFlyToggleEvent> events = new ArrayList<>();
-    AbilityTracker tracker = new AbilityTracker((recipient, event) -> events.add(event));
+    AbilityTracker tracker = new AbilityTracker();
     toggle(tracker, user, true, false);
     assertFalse(user.meta().abilities().acknowledgedFlying());
     user.meta().abilities().setAllowFlying(true);
     toggle(tracker, user, true, true);
     assertFalse(user.meta().abilities().acknowledgedFlying());
-    assertTrue(events.isEmpty());
   }
 
   private static void toggle(AbilityTracker tracker, User user, boolean flying, boolean cancelled) {

@@ -55,6 +55,7 @@ public final class Nayoro extends Module {
   private final Map<UUID, Integer> samplingBufferSizes = GarbageCollector.watch(new ConcurrentHashMap<>());
   private final PacketEventDispatch packetEventDispatch = new PacketEventDispatch(this::emit);
   private final PlayerEnvironmentRecorder playerEnvironmentRecorder = new PlayerEnvironmentRecorder(this::emit);
+  private final PlayerFlightRecorder playerFlightRecorder = new PlayerFlightRecorder(this::emit);
   private final List<Playback> playbacks = new ArrayList<>();
   private Task markerTask;
 
@@ -66,6 +67,8 @@ public final class Nayoro extends Module {
   public void enable() {
     Modules.linker().packetEvents().linkSubscriptionsIn(packetEventDispatch);
     Modules.linker().packetEvents().linkSubscriptionsIn(playerEnvironmentRecorder);
+    Modules.linker().packetEvents().linkSubscriptionsIn(playerFlightRecorder);
+    Modules.linker().bukkitEvents().registerEventsIn(playerFlightRecorder);
     markerTask = Tasks.periodicNamed(
       "Nayoro.marker", this::emitGlobalMarker, 20L * 60, 20L * 60
     ).startAsync();
@@ -75,6 +78,8 @@ public final class Nayoro extends Module {
   public void disable() {
     Modules.linker().packetEvents().removeSubscriptionsOf(packetEventDispatch);
     Modules.linker().packetEvents().removeSubscriptionsOf(playerEnvironmentRecorder);
+    Modules.linker().packetEvents().removeSubscriptionsOf(playerFlightRecorder);
+    Modules.linker().bukkitEvents().unregisterEventsIn(playerFlightRecorder);
     if (markerTask != null) {
       markerTask.cancel();
       markerTask = null;
@@ -127,7 +132,9 @@ public final class Nayoro extends Module {
       RecordEventSink recordEventSink = new RecordEventSink(new LiveEnvironment(user), output, classifier);
       playerEnvironmentRecorder.start(user, recordEventSink, () ->
         Modules.find(PlayerScoreboardRecorder.class).start(
-          user, recordEventSink, () -> eventSinks.get(user).add(recordEventSink)
+          user, recordEventSink, () -> playerFlightRecorder.start(
+            user, recordEventSink, () -> eventSinks.get(user).add(recordEventSink)
+          )
         )
       );
       Modules.find(PlayerVitalsTracker.class).synchronizeSnapshot(user);

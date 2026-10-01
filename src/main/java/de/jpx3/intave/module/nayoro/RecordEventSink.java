@@ -12,7 +12,6 @@
 package de.jpx3.intave.module.nayoro;
 
 import ac.intave.samples.event.*;
-import ac.intave.samples.serial.JsonReader;
 import ac.intave.samples.serial.JsonWriter;
 import ac.intave.samples.share.BlockUpdate;
 import ac.intave.samples.share.Classifier;
@@ -24,15 +23,12 @@ import de.jpx3.intave.version.ProtocolVersionConverter;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 final class RecordEventSink extends EventSink {
   private static final int COMPRESSION_FLUSH_THRESHOLD = 128 * 1024;
-  // Offset values are assigned after chunking, so leave room for a full millisecond timestamp.
-  static final int EVENT_CHARACTER_BUDGET = JsonReader.MAX_EVENT_CHARACTERS - 256;
 
   private final long startedAt = System.currentTimeMillis();
   private long lastEventAt = startedAt;
@@ -132,8 +128,8 @@ final class RecordEventSink extends EventSink {
         user.blockCache(), movement.boundingBox(), movement.lookVector(),
         Math.sqrt(dx * dx + dy * dy + dz * dz)
       );
-      for (BlockUpdatesEvent updateEvent : chunkBlockUpdates(updates)) {
-        visitAny(updateEvent);
+      if (!updates.isEmpty()) {
+        visitAny(new BlockUpdatesEvent(updates));
       }
     });
     visitAny(event);
@@ -183,64 +179,4 @@ final class RecordEventSink extends EventSink {
     return "RECORD";
   }
 
-  static List<BlockUpdatesEvent> chunkBlockUpdates(List<BlockUpdate> updates) {
-    if (updates.isEmpty()) {
-      return Collections.emptyList();
-    }
-    List<BlockUpdatesEvent> events = new ArrayList<>();
-    List<BlockUpdate> current = new ArrayList<>();
-    StringWriter sizeOutput = new StringWriter();
-    JsonWriter sizeWriter = new JsonWriter(sizeOutput);
-    int emptyEventCharacters = serializedCharacters(
-      sizeWriter, sizeOutput, new BlockUpdatesEvent()
-    );
-    int currentCharacters = emptyEventCharacters;
-    for (BlockUpdate update : updates) {
-      int updateCharacters = serializedCharacters(
-        sizeWriter, sizeOutput, new BlockUpdatesEvent(Collections.singleton(update))
-      ) - emptyEventCharacters;
-      if (emptyEventCharacters + updateCharacters > EVENT_CHARACTER_BUDGET) {
-        throw oversizedUpdate(update);
-      }
-
-      int separatorCharacters = current.isEmpty() ? 0 : 1;
-      if (currentCharacters + separatorCharacters + updateCharacters >
-        EVENT_CHARACTER_BUDGET
-      ) {
-        events.add(new BlockUpdatesEvent(current));
-        current.clear();
-        currentCharacters = emptyEventCharacters;
-        separatorCharacters = 0;
-      }
-
-      current.add(update);
-      currentCharacters += separatorCharacters + updateCharacters;
-    }
-    if (!current.isEmpty()) {
-      events.add(new BlockUpdatesEvent(current));
-    }
-    return events;
-  }
-
-  static int serializedCharacters(BlockUpdatesEvent event) {
-    StringWriter output = new StringWriter();
-    return serializedCharacters(new JsonWriter(output), output, event);
-  }
-
-  private static int serializedCharacters(
-    JsonWriter writer,
-    StringWriter output,
-    BlockUpdatesEvent event
-  ) {
-    output.getBuffer().setLength(0);
-    writer.visitAny(event);
-    return output.getBuffer().length();
-  }
-
-  private static IllegalArgumentException oversizedUpdate(BlockUpdate update) {
-    return new IllegalArgumentException(
-      "A single block update at " + update.position() +
-        " exceeds the Nayoro event character limit"
-    );
-  }
 }

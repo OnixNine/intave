@@ -12,6 +12,7 @@
 package de.jpx3.intave.module.nayoro;
 
 import ac.intave.samples.event.AttackEvent;
+import ac.intave.samples.event.FlyStateUpdateEvent;
 import ac.intave.samples.event.PlayerFlyToggleEvent;
 import ac.intave.samples.event.PlayerInitEvent;
 import ac.intave.samples.event.PlayerMoveEvent;
@@ -34,6 +35,7 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
   private int version;
   private boolean outdated;
   private boolean flying;
+  private FlyStateUpdateEvent flightState;
   private double posX;
   private double posY;
   private double posZ;
@@ -67,6 +69,10 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
   @Override
   public boolean flying() {
     return flying;
+  }
+
+  FlyStateUpdateEvent flightState() {
+    return flightState;
   }
 
   @Override
@@ -143,7 +149,7 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
 
   @Override
   public boolean inGameMode(GameMode gameMode) {
-    return false;
+    return flightState != null && gameMode.name().equals(flightState.gameMode());
   }
 
   @Override
@@ -273,6 +279,15 @@ final class PlaybackPlayerContainer extends SinkPlayerContainer {
   @Override
   public void visit(PlayerFlyToggleEvent event) {
     flying = event.isFlying();
+    visitAny(event);
+  }
+
+  @Override
+  public void visit(FlyStateUpdateEvent event) {
+    // Each event is a full snapshot: null clears an earlier observation.
+    flightState = event;
+    flying = Boolean.TRUE.equals(event.serverFlying() != null
+      ? event.serverFlying() : event.clientFlying());
     visitAny(event);
   }
 

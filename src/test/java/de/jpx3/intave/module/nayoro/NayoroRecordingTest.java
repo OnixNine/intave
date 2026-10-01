@@ -15,6 +15,7 @@ import ac.intave.samples.event.AttackEvent;
 import ac.intave.samples.event.ClickEvent;
 import ac.intave.samples.event.EntityInteractEvent;
 import ac.intave.samples.event.Event;
+import ac.intave.samples.event.FlyStateUpdateEvent;
 import ac.intave.samples.event.HeaderEvent;
 import ac.intave.samples.event.ItemActionEvent;
 import ac.intave.samples.event.MarkerEvent;
@@ -62,6 +63,8 @@ final class NayoroRecordingTest {
     movement.withOffset(50);
     PlayerFlyToggleEvent flyToggle = new PlayerFlyToggleEvent(true);
     flyToggle.withOffset(10);
+    FlyStateUpdateEvent flightState = new FlyStateUpdateEvent(false, 0.05F, "SURVIVAL", true, false);
+    flightState.withOffset(2);
     TotemPopEvent totemPop = new TotemPopEvent(21);
     totemPop.withOffset(4);
     UUID markerId = UUID.randomUUID();
@@ -80,6 +83,7 @@ final class NayoroRecordingTest {
       interaction.accept(writer);
       movement.accept(writer);
       flyToggle.accept(writer);
+      flightState.accept(writer);
       totemPop.accept(writer);
       marker.accept(writer);
       itemAction.accept(writer);
@@ -126,6 +130,15 @@ final class NayoroRecordingTest {
       );
       assertTrue(decodedFlyToggle.isFlying());
       assertEquals(10, decodedFlyToggle.offset());
+      FlyStateUpdateEvent decodedFlightState = assertInstanceOf(
+        FlyStateUpdateEvent.class, reader.nextEvent()
+      );
+      assertFalse(decodedFlightState.allowFlight());
+      assertEquals(0.05F, decodedFlightState.flySpeed());
+      assertEquals("SURVIVAL", decodedFlightState.gameMode());
+      assertTrue(decodedFlightState.clientFlying());
+      assertFalse(decodedFlightState.serverFlying());
+      assertEquals(2, decodedFlightState.offset());
       TotemPopEvent decodedTotemPop = assertInstanceOf(
         TotemPopEvent.class, reader.nextEvent()
       );
