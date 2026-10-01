@@ -18,7 +18,6 @@ import de.jpx3.intave.access.check.event.IntaveViolationEvent;
 import de.jpx3.intave.access.player.trust.TrustFactor;
 import de.jpx3.intave.check.Check;
 import de.jpx3.intave.check.CheckStatistics;
-import de.jpx3.intave.check.other.Cloud;
 import de.jpx3.intave.executor.Synchronizer;
 import de.jpx3.intave.math.MathHelper;
 import de.jpx3.intave.metric.ServerHealth;
@@ -246,9 +245,9 @@ public final class ViolationProcessor extends Module {
     User user = UserRepository.userOf(player);
     LongTermViolationStorage violationStorage = user.storageOf(LongTermViolationStorage.class);
     violationStorage.noteViolation(violationContext);
-    if (violation.checkClass() == Cloud.class) {
-      return;
-    }
+//    if (violation.checkClass() == Cloud.class) {
+//      return;
+//    }
     String checkName = violation.check().name().toLowerCase(Locale.ROOT);
     String threshold = violation.threshold();
     String message = violation.message();
