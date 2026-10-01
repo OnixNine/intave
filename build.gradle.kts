@@ -79,7 +79,7 @@ dependencies {
   )
 
   // Bundled libraries.
-  implementation("ac.intave:samples:0.0.10") { isTransitive = false }
+  implementation("ac.intave:samples:0.0.11") { isTransitive = false }
   implementation("ac.intave:cloud-protocol:0.0.11") { isTransitive = false }
   implementation("it.unimi.dsi:fastutil:8.5.12")
   implementation("net.bytebuddy:byte-buddy:1.18.2")
@@ -768,11 +768,8 @@ fun registerPaperRunTask(serverVersion: String, javaVersion: Int) {
       if (serverVersion in protocolLibPreloadVersions) {
         url(protocolLibDevUrl)
       }
-      // The current public Via releases support up to 26.2.
-      if (serverVersion != "26.3") {
-        modrinth("viaversion", "5.11.0")
-        modrinth("viabackwards", "5.11.0")
-      }
+      modrinth("viaversion", "5.12.0")
+      modrinth("viabackwards", "5.12.0")
     }
     runDirectory(File("runs/paper_${serverVersion}-j$javaVersion"))
     jvmArgs("-Dcom.mojang.eula.agree=true")
@@ -867,8 +864,8 @@ fun registerLeafRunTask(
     minecraftVersion(serverVersion)
     serverJar(leafServerJar.asFile)
     downloadPlugins {
-      modrinth("viaversion", "5.11.0")
-      modrinth("viabackwards", "5.11.0")
+      modrinth("viaversion", "5.12.0")
+      modrinth("viabackwards", "5.12.0")
     }
     runDirectory(File("runs/leaf_${serverVersion}-j$javaVersion"))
     jvmArgs("-Dcom.mojang.eula.agree=true")
