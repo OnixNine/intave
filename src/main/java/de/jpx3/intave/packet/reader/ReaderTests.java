@@ -1030,31 +1030,24 @@ public final class ReaderTests extends IntegrationTests {
     }
   }
 
-  @Test(
-    testCode = "A",
-    severity = Severity.ERROR
-  )
-  public void testRegisteredReadersAcquireAndReleasePackets() {
-    int checkedReaders = 0;
+  public static Iterable<PacketType> registeredPacketTypes() {
+    List<PacketType> types = new ArrayList<>();
     for (PacketType value : PacketType.values()) {
       if (PacketReaders.hasReader(value) && !EXCLUDED_TYPES.contains(value)) {
-        PacketContainer packet;
-	      try {
-          packet = new PacketContainer(value);
-        } catch (Throwable exception) {
-          exception.printStackTrace();
-          throw new IllegalStateException("Failed to create packet container for " + value);
-        }
-        // Empty packets are useful for lifecycle checks, not semantic getter tests.
-        // Exercise decoded values with explicit populated fixtures above instead.
-        AbstractPacketReader reader = PacketReaders.readerOf(packet);
-        try (AbstractPacketReader acquired = reader) {
-          assertSame(packet, acquired.packet());
-        }
-        assertNull(reader.packet());
-        checkedReaders++;
+        types.add(value);
       }
     }
-    assertTrue(checkedReaders > 0);
+    return types;
+  }
+
+  @Test(testCode = "A", severity = Severity.ERROR, parameters = "registeredPacketTypes")
+  public void testRegisteredReadersAcquireAndReleasePackets(PacketType type) {
+    // One native packet per case lets the runner yield between expensive constructions.
+    PacketContainer packet = new PacketContainer(type);
+    AbstractPacketReader reader = PacketReaders.readerOf(packet);
+    try (AbstractPacketReader acquired = reader) {
+      assertSame(packet, acquired.packet());
+    }
+    assertNull(reader.packet());
   }
 }

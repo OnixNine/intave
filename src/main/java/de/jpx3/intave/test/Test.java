@@ -12,4 +12,7 @@ import java.lang.annotation.RetentionPolicy;
 public @interface Test {
   String testCode() default "NOT SET";
   Severity severity() default Severity.INFO;
+
+  /** Public static, no-argument method returning the values for a single test parameter. */
+  String parameters() default "";
 }

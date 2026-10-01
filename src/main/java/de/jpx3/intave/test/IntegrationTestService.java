@@ -40,6 +40,7 @@ import de.jpx3.intave.resource.Resources;
 import de.jpx3.intave.security.HWIDVerification;
 import de.jpx3.intave.security.HashAccess;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.plugin.Plugin;
@@ -74,7 +75,8 @@ public final class IntegrationTestService implements EventProcessor {
       8192
     );
   private static final String environmentHash = environmentHash();
-  private boolean testsWereRun = false;
+  private boolean testsStarted;
+  private volatile boolean testsWereRun = false;
 
   private static String environmentHash() {
     StringBuilder bigString = new StringBuilder(Bukkit.getServer().getName());
@@ -176,53 +178,63 @@ public final class IntegrationTestService implements EventProcessor {
   }
 
   public void performTests() {
-    if (Bukkit.getWorlds().isEmpty()) {
+    if (testsStarted) {
+      return;
+    }
+    List<World> worlds = Bukkit.getWorlds();
+    if (worlds.isEmpty()) {
       IntaveLogger.logger().info("No worlds loaded, delaying integration tests");
       loadQueue.add(this::performTests);
       return;
     }
 
+    testsStarted = true;
     if (IntaveControl.DEBUG_OUTPUT_FOR_TESTS) {
       IntaveLogger.logger().info("Start integration testing..");
     }
     long start = System.currentTimeMillis();
     try {
-      // we can assume all classes loaded
+      List<Runnable> tests = new ArrayList<>();
+      addTests(tests, BlockAccessTests.class);
+      addTests(tests, BlockVariantTests.class);
+      addTests(tests, DoorInteractionTests.class);
+      addTests(tests, TrapdoorInteractionTests.class);
+      addTests(tests, FenceGateInteractionTests.class);
+      addTests(tests, BlockShapeDrillTests.class);
+      addTests(tests, BlockShapePipelineTests.class);
+      addTests(tests, EntitySizeTests.class);
+      addTests(tests, FeedbackTests.class);
+      addTests(tests, ReaderTests.class);
+      addTests(tests, FluidTests.class);
+      addTests(tests, ReferenceExistenceTests.class);
 
-      // parts
-      performTest(BlockAccessTests.class);
-      performTest(BlockVariantTests.class);
-      performTest(DoorInteractionTests.class);
-      performTest(TrapdoorInteractionTests.class);
-      performTest(FenceGateInteractionTests.class);
-      performTest(BlockShapeDrillTests.class);
-      performTest(BlockShapePipelineTests.class);
-      performTest(EntitySizeTests.class);
-      performTest(FeedbackTests.class);
-      performTest(ReaderTests.class);
-      performTest(FluidTests.class);
-
-      // locate
-      performTest(ReferenceExistenceTests.class);
-
-    } catch (Throwable werfbares) {
-      Throwable throwable = werfbares;
-      while (throwable.getCause() != null) {
-        throwable = throwable.getCause();
-      }
-      String exceptionName = throwable.getClass().getSimpleName();
-      IntaveLogger.logger().error("Reported " + resolveArticleOf(exceptionName) + " " + exceptionName + ": " + throwable.getMessage());
-      IntaveLogger.logger().error("You are hereby advised to report this fault to us before using this version of Intave.");
-      IntaveLogger.logger().error("If possible, include the following stacktrace in your report:");
-      throwable.printStackTrace();
-      if (IS_INTEGRATION_TEST_RUN) {
-        IntaveLogger.logger().error("Shutting down server due to test failure");
-        BackgroundExecutors.execute(() -> System.exit(1));
-      }
-      return;
-    } finally {
-      testsWereRun = true;
+      World world = worlds.get(0);
+      new IntegrationTestRunner(tests,
+        next -> Synchronizer.synchronizeDelayed(world, 0, 0, next, 1),
+        () -> testsSucceeded(start), this::testsFailed).run();
+    } catch (Throwable throwable) {
+      testsFailed(throwable);
     }
+  }
+
+  private void testsFailed(Throwable throwable) {
+    testsWereRun = true;
+    while (throwable.getCause() != null) {
+      throwable = throwable.getCause();
+    }
+    String exceptionName = throwable.getClass().getSimpleName();
+    IntaveLogger.logger().error("Reported " + resolveArticleOf(exceptionName) + " " + exceptionName + ": " + throwable.getMessage());
+    IntaveLogger.logger().error("You are hereby advised to report this fault to us before using this version of Intave.");
+    IntaveLogger.logger().error("If possible, include the following stacktrace in your report:");
+    throwable.printStackTrace();
+    if (IS_INTEGRATION_TEST_RUN) {
+      IntaveLogger.logger().error("Shutting down server due to test failure");
+      BackgroundExecutors.execute(() -> System.exit(1));
+    }
+  }
+
+  private void testsSucceeded(long start) {
+    testsWereRun = true;
     dontCheckThisEnvironmentAgain();
     if (IntaveControl.DEBUG_OUTPUT_FOR_TESTS) {
       IntaveLogger.logger().info("No problems found after " + MathHelper.formatDouble((System.currentTimeMillis() - start) / 1000d, 1) + "s.");
@@ -273,13 +285,9 @@ public final class IntegrationTestService implements EventProcessor {
 
   private static int testsInInstance = 0;
 
-  public void performTest(Class<? extends IntegrationTests> testsClass) {
-    try {
-      testsInInstance++;
-      new IntegrationTester(testsClass).run();
-    } catch (Exception exception) {
-      throw new RuntimeException(exception);
-    }
+  private void addTests(List<Runnable> tests, Class<? extends IntegrationTests> testsClass) {
+    testsInInstance++;
+    tests.addAll(new IntegrationTester(testsClass).createTests());
   }
 
   private static final Set<String> cleared = new HashSet<>();

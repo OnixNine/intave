@@ -4,11 +4,13 @@ import de.jpx3.intave.IntaveControl;
 import de.jpx3.intave.IntaveLogger;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public final class IntegrationTester implements Runnable {
-  private Class<?> testClass;
+  private final Class<? extends IntegrationTests> testClass;
 
   private Method beforeMethod;
   private Method afterMethod;
@@ -17,13 +19,14 @@ public final class IntegrationTester implements Runnable {
 
   public IntegrationTester(Class<? extends IntegrationTests> testClass) {
     this.testClass = testClass;
+    prepare();
   }
 
   @Override
   public void run() {
-    prepare();
-    runTests();
-    reset();
+    for (Runnable test : createTests()) {
+      test.run();
+    }
   }
 
   private void prepare() {
@@ -47,23 +50,54 @@ public final class IntegrationTester implements Runnable {
     }
   }
 
-  private void runTests() {
+  public List<Runnable> createTests() {
+    List<Runnable> tests = new ArrayList<>();
     for (Method method : testMethods) {
-      runTest(method);
+      String parameters = method.getAnnotation(Test.class).parameters();
+      if (parameters.isEmpty()) {
+        if (method.getParameterCount() != 0) {
+          throw new IllegalArgumentException("Missing parameter source for " + method);
+        }
+        tests.add(() -> runTest(method));
+        continue;
+      }
+      if (method.getParameterCount() != 1) {
+        throw new IllegalArgumentException("Parameterized test must take one argument: " + method);
+      }
+      try {
+        Method source = testClass.getMethod(parameters);
+        if (!Modifier.isStatic(source.getModifiers()) || !Iterable.class.isAssignableFrom(source.getReturnType())) {
+          throw new IllegalArgumentException("Parameter source must be static and return Iterable: " + source);
+        }
+        int count = 0;
+        for (Object parameter : (Iterable<?>) source.invoke(null)) {
+          tests.add(() -> runTest(method, parameter));
+          count++;
+        }
+        if (count == 0) {
+          throw new IllegalArgumentException("Empty parameter source for " + method);
+        }
+      } catch (ReflectiveOperationException exception) {
+        throw new IllegalStateException("Failed to load parameters for " + method, exception);
+      }
     }
+    return tests;
   }
 
-  private void runTest(Method testMethod) {
+  private void runTest(Method testMethod, Object... parameters) {
     Test annotation = testMethod.getAnnotation(Test.class);
     String testCode = annotation.testCode();
 
     IntegrationTests test;
     try {
-      test = (IntegrationTests) testClass.newInstance();
+      test = testClass.newInstance();
     } catch (Exception exception) {
       throw new RuntimeException("Failed to instantiate test", exception);
     }
     String fullTestName = test.testCode() + "::" + testCode;
+    if (parameters.length != 0) {
+      fullTestName += Arrays.toString(parameters);
+    }
     try {
       if (beforeMethod != null) {
         long start = System.currentTimeMillis();
@@ -83,7 +117,7 @@ public final class IntegrationTester implements Runnable {
       }
 
       long start = System.currentTimeMillis();
-      testMethod.invoke(test);
+      testMethod.invoke(test, parameters);
       long end = System.currentTimeMillis();
       long duration = end - start;
       if (duration > 250 && IntaveControl.DEBUG_OUTPUT_FOR_TESTS) {
@@ -122,12 +156,5 @@ public final class IntegrationTester implements Runnable {
         }
       }
     }
-  }
-
-  private void reset() {
-    beforeMethod = null;
-    afterMethod = null;
-    testMethods.clear();
-    testClass = null;
   }
 }
