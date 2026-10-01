@@ -1,56 +1,50 @@
+/*
+ * Copyright 2026 Intave
+ *
+ * This software is licensed under the PolyForm Perimeter License 1.0.0.
+ * You may use this software for any purpose, except for providing to
+ * others any product that competes with the software.
+ *
+ * A copy of the license is available at:
+ *   https://polyformproject.org/licenses/perimeter/1.0.0/
+ */
+
 package de.jpx3.intave.check.other.protocolscanner;
 
+import de.jpx3.intave.user.meta.MovementMetadata;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class MoveTickLimitTest {
   @Test
-  void countsOnlyOneMovementPacketPerClientTick() {
-    MoveTickLimit.MovementPacketWindow window = new MoveTickLimit.MovementPacketWindow();
+  void ignoresTeleportConfirmation() {
+    MovementMetadata movement = new MovementMetadata(null, null);
+    movement.isTeleportConfirmationPacket = true;
 
-    assertEquals(1, window.recordMovement());
-    assertEquals(2, window.recordMovement());
-    assertEquals(3, window.recordMovement());
+    assertTrue(MoveTickLimit.shouldIgnoreMovement(movement));
   }
 
   @Test
-  void clientTickEndStartsANewMovementPacketWindow() {
-    MoveTickLimit.MovementPacketWindow window = new MoveTickLimit.MovementPacketWindow();
+  void ignoresExpectedItemUseMovement() {
+    MovementMetadata movement = new MovementMetadata(null, null);
+    movement.awaitClickMovementSkip = true;
+    movement.dropPostTickMotionProcessing = true;
 
-    assertEquals(1, window.recordMovement());
-    assertEquals(2, window.recordMovement());
-
-    window.startNextTick();
-
-    assertEquals(1, window.recordMovement());
+    assertTrue(MoveTickLimit.shouldIgnoreMovement(movement));
   }
 
   @Test
-  void emptyClientTicksAlsoResetTheWindow() {
-    MoveTickLimit.MovementPacketWindow window = new MoveTickLimit.MovementPacketWindow();
+  void doesNotIgnoreSingleItemUseFlag() {
+    MovementMetadata movement = new MovementMetadata(null, null);
+    movement.awaitClickMovementSkip = true;
 
-    window.startNextTick();
-    window.startNextTick();
+    assertFalse(MoveTickLimit.shouldIgnoreMovement(movement));
 
-    assertEquals(1, window.recordMovement());
-  }
+    movement.awaitClickMovementSkip = false;
+    movement.dropPostTickMotionProcessing = true;
 
-  @Test
-  void teleportConfirmationIsNotNormalMovement() {
-    assertFalse(MoveTickLimit.shouldCountAsNormalMovement(true, false, false));
-  }
-
-  @Test
-  void itemUseMovementIsNotNormalMovement() {
-    assertFalse(MoveTickLimit.shouldCountAsNormalMovement(false, true, true));
-  }
-
-  @Test
-  void unrelatedDroppedOrPendingStateDoesNotHideMovement() {
-    assertTrue(MoveTickLimit.shouldCountAsNormalMovement(false, true, false));
-    assertTrue(MoveTickLimit.shouldCountAsNormalMovement(false, false, true));
+    assertFalse(MoveTickLimit.shouldIgnoreMovement(movement));
   }
 }

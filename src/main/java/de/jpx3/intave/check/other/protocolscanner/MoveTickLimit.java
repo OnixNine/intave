@@ -21,19 +21,15 @@ import de.jpx3.intave.user.User;
 import de.jpx3.intave.user.meta.MovementMetadata;
 import org.bukkit.event.Cancellable;
 
-import static de.jpx3.intave.module.linker.packet.PacketId.Client.CLIENT_TICK_END;
-import static de.jpx3.intave.module.linker.packet.PacketId.Client.FLYING;
-import static de.jpx3.intave.module.linker.packet.PacketId.Client.LOOK;
-import static de.jpx3.intave.module.linker.packet.PacketId.Client.POSITION;
-import static de.jpx3.intave.module.linker.packet.PacketId.Client.POSITION_LOOK;
+import static de.jpx3.intave.module.linker.packet.PacketId.Client.*;
 
 public final class MoveTickLimit extends PlayerCheckPart<ProtocolScanner> {
-  private final int packetOrderViolationLevel;
-  private final MovementPacketWindow packetWindow = new MovementPacketWindow();
+  private final int violationLevel;
+  private int movementPacketsSinceTickEnd;
 
   public MoveTickLimit(User user, ProtocolScanner parentCheck) {
     super(user, parentCheck);
-    this.packetOrderViolationLevel = parentCheck.configuration().settings().intBy("packet-order-vl", 5);
+    this.violationLevel = parentCheck.configuration().settings().intBy("packet-order-vl", 5);
   }
 
   @PacketSubscription(
@@ -43,16 +39,12 @@ public final class MoveTickLimit extends PlayerCheckPart<ProtocolScanner> {
   )
   public void receiveMovement(Cancellable cancellable) {
     User user = owningUser();
-    if (!usesClientTickEnd(user)) {
+    if (!user.meta().protocol().sendsClientTickEnd() || shouldIgnoreMovement(user.meta().movement())) {
       return;
     }
 
-    if (!shouldCountAsNormalMovement(user.meta().movement())) {
-      return;
-    }
-
-    int movementPacketCount = packetWindow.recordMovement();
-    if (movementPacketCount == 1 || packetOrderViolationLevel == 0) {
+    int packetCount = ++movementPacketsSinceTickEnd;
+    if (packetCount == 1 || violationLevel == 0) {
       return;
     }
 
@@ -60,8 +52,8 @@ public final class MoveTickLimit extends PlayerCheckPart<ProtocolScanner> {
     Violation violation = Violation.builderFor(ProtocolScanner.class)
       .forPlayer(user.player())
       .withMessage("sent multiple movement packets")
-      .withDetails(movementPacketCount + " packets without client tick end")
-      .withVL(packetOrderViolationLevel)
+      .withDetails(packetCount + " packets without client tick end")
+      .withVL(violationLevel)
       .build();
     Modules.violationProcessor().processViolation(violation);
   }
@@ -71,41 +63,11 @@ public final class MoveTickLimit extends PlayerCheckPart<ProtocolScanner> {
     packetsIn = CLIENT_TICK_END
   )
   public void receiveClientTickEnd() {
-    if (usesClientTickEnd(owningUser())) {
-      packetWindow.startNextTick();
-    }
+    movementPacketsSinceTickEnd = 0;
   }
 
-  private boolean usesClientTickEnd(User user) {
-    return user.meta().protocol().sendsClientTickEnd();
-  }
-
-  private static boolean shouldCountAsNormalMovement(MovementMetadata movement) {
-    return shouldCountAsNormalMovement(
-      movement.isTeleportConfirmationPacket,
-      movement.awaitClickMovementSkip,
-      movement.dropPostTickMotionProcessing
-    );
-  }
-
-  static boolean shouldCountAsNormalMovement(
-    boolean teleportConfirmation,
-    boolean itemUseMovementExpected,
-    boolean postTickProcessingSuppressed
-  ) {
-    boolean itemUseMovement = itemUseMovementExpected && postTickProcessingSuppressed;
-    return !teleportConfirmation && !itemUseMovement;
-  }
-
-  static final class MovementPacketWindow {
-    private int movementPacketCount;
-
-    int recordMovement() {
-      return ++movementPacketCount;
-    }
-
-    void startNextTick() {
-      movementPacketCount = 0;
-    }
+  static boolean shouldIgnoreMovement(MovementMetadata movement) {
+    return movement.isTeleportConfirmationPacket
+      || (movement.awaitClickMovementSkip && movement.dropPostTickMotionProcessing);
   }
 }
