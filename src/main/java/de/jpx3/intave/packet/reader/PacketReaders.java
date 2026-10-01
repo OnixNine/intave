@@ -109,6 +109,7 @@ public final class PacketReaders {
     setup(ENCHANT_ITEM, WindowIdReader::new);
     setup(ENTITY_ACTION_IN, PlayerActionReader::new);
     setup(FLYING, PlayerMoveReader::new);
+    setup(HELD_ITEM_SLOT_IN, HeldItemSlotReader::new);
     setup(LOOK, PlayerMoveReader::new);
     setup(Client.POSITION, PlayerMoveReader::new);
     setup(POSITION_LOOK, PlayerMoveReader::new);
