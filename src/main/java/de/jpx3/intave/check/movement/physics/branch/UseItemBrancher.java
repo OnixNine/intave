@@ -31,7 +31,7 @@ final class UseItemBrancher extends MovementSearchBrancher {
     ProtocolMetadata protocol = input.user().meta().protocol();
     UseItemRequirement requirement = useItemRequirement(input, inputBranch);
     if (input.user().receives(MessageChannel.DEBUG_ITEM_USE) && input.shouldUpdateItemUseDebug()) {
-      inventoryData.itemUsePermissionDebug(requirement.name());
+      inventoryData.itemUsePermissionDebug(requirement.debugCode());
     }
     int numOutputBranches = 0;
     for (boolean useItemState : inventoryData.handActive() ? OPTIMISTIC : PESSIMISTIC) {
@@ -100,6 +100,10 @@ final class UseItemBrancher extends MovementSearchBrancher {
 
     boolean allows(boolean useItemState) {
       return useItemState ? allowActive : allowInactive;
+    }
+
+    String debugCode() {
+      return name().substring(0, 1);
     }
 
     private static UseItemRequirement from(boolean skip, boolean require) {

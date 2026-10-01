@@ -1305,13 +1305,15 @@ public final class Physics extends Check {
 
       if (debugItemUse && user.hasPlayer()) {
         boolean requestsReset = resetItemUsage && ignoredSlowdown && movementData.handItemSimulationFails > 1;
-        ActionBar.sendActionBar(user.player(), ChatColor.GOLD + "Item use " + ChatColor.GRAY
-          + "| perm=" + inventoryData.itemUsePermissionDebug() + " active=true impossible=true"
-          + " speed=" + MathHelper.formatDouble(horizontalSpeed, 4) + " tp=" + ticksSinceTeleport
-          + " bow=" + itemIsBow + " activeTicks=" + inventoryData.handActiveTicks
-          + " viaShield=" + viaVersionBlockReplacement + " release=" + releaseHandConditions
-          + " ignored=" + ignoredSlowdown + " fails=" + movementData.handItemSimulationFails
-          + " reset=" + requestsReset);
+        ActionBar.sendActionBar(user.player(), ChatColor.GOLD + "IU " + ChatColor.GRAY
+          + "p:" + coloredPermission(inventoryData.itemUsePermissionDebug())
+          + " a:" + bit(true) + " x:" + bit(true)
+          + " v:" + ChatColor.YELLOW + MathHelper.formatDouble(horizontalSpeed, 4) + ChatColor.GRAY
+          + " tp:" + ticksSinceTeleport
+          + " b:" + bit(itemIsBow) + " t:" + inventoryData.handActiveTicks
+          + " vs:" + bit(viaVersionBlockReplacement) + " rel:" + bit(releaseHandConditions)
+          + " ign:" + bit(ignoredSlowdown) + " f:" + coloredCount(movementData.handItemSimulationFails)
+          + " rst:" + bit(requestsReset));
       }
 
       if (resetItemUsage && ignoredSlowdown && movementData.handItemSimulationFails++ > 1) {
@@ -1322,13 +1324,43 @@ public final class Physics extends Check {
         }
       }
     } else if (debugItemUse && user.hasPlayer()) {
-      ActionBar.sendActionBar(user.player(), ChatColor.GOLD + "Item use " + ChatColor.GRAY
-        + "| perm=" + inventoryData.itemUsePermissionDebug()
-        + " active=" + packetsSuggestsHandIsActive
-        + " impossible=" + movementProvesHandIsInactive
-        + " activeTicks=" + inventoryData.handActiveTicks
-        + " fails=" + movementData.handItemSimulationFails);
+      ActionBar.sendActionBar(user.player(), ChatColor.GOLD + "IU " + ChatColor.GRAY
+        + "p:" + coloredPermission(inventoryData.itemUsePermissionDebug())
+        + " a:" + bit(packetsSuggestsHandIsActive)
+        + " x:" + bit(movementProvesHandIsInactive)
+        + " t:" + inventoryData.handActiveTicks
+        + " f:" + coloredCount(movementData.handItemSimulationFails));
     }
+  }
+
+  private static String bit(boolean value) {
+    return (value ? ChatColor.GREEN : ChatColor.RED) + (value ? "1" : "0") + ChatColor.GRAY;
+  }
+
+  private static String coloredCount(int value) {
+    return (value > 0 ? ChatColor.RED : ChatColor.GREEN) + Integer.toString(value) + ChatColor.GRAY;
+  }
+
+  private static String coloredPermission(String permission) {
+    ChatColor color;
+    switch (permission) {
+      case "A":
+        color = ChatColor.GREEN;
+        break;
+      case "S":
+        color = ChatColor.YELLOW;
+        break;
+      case "R":
+        color = ChatColor.AQUA;
+        break;
+      case "N":
+        color = ChatColor.RED;
+        break;
+      default:
+        color = ChatColor.DARK_GRAY;
+        break;
+    }
+    return color + permission + ChatColor.GRAY;
   }
 
   private void refreshBlock(Player player, Location location) {
