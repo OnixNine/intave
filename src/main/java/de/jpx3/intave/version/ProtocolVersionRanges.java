@@ -64,7 +64,7 @@ final class ProtocolVersionRanges implements Iterable<ProtocolVersionRange> {
         int secondDistance = Math.abs(second.asMinecraftVersion().compareTo(requestVersion));
         return firstDistance - secondDistance;
       });
-    return nearest.map(ProtocolVersionRange::to).orElse(-1);
+    return nearest.map(ProtocolVersionRange::to).orElseThrow(() -> new IllegalStateException("No protocol version ranges available"));
   }
 
   @NotNull
