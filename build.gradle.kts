@@ -928,6 +928,14 @@ tasks {
   test {
     useJUnitPlatform()
     failOnNoDiscoveredTests = false
+    // Keep shared Bukkit/physics state sequential within each JVM, but distribute classes.
+    systemProperty("junit.jupiter.execution.parallel.enabled", "false")
+    maxParallelForks = providers.gradleProperty("test.maxParallelForks")
+      .map { value ->
+        value.toIntOrNull()?.takeIf { it > 0 }
+          ?: throw GradleException("test.maxParallelForks must be a positive integer, got: $value")
+      }
+      .getOrElse(minOf(4, maxOf(1, Runtime.getRuntime().availableProcessors() / 2), gradle.startParameter.maxWorkerCount))
   }
 
   jacocoTestReport {

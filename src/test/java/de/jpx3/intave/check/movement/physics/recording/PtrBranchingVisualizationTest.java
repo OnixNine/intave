@@ -93,7 +93,10 @@ final class PtrBranchingVisualizationTest {
 	}
 
 	static Path writeFailureReport(String resource, MovementRecording recording, int tick, Simulation selected, Motion actualMotion) throws IOException {
-		return writeReport(resource, recording, List.of(traceTick(tick, selected, actualMotion)));
+		// Replays and full trace generation may run in different Gradle test JVMs.
+		Path failureRoot = OUTPUT_ROOT.resolve("failures")
+			.resolve(System.getProperty("org.gradle.test.worker", "standalone"));
+		return writeReport(resource, recording, List.of(traceTick(tick, selected, actualMotion)), failureRoot);
 	}
 
 	static String printReportLink(Path output, int tick) {
@@ -107,7 +110,11 @@ final class PtrBranchingVisualizationTest {
 	}
 
 	private static Path writeReport(String resource, MovementRecording recording, List<TickTrace> ticks) throws IOException {
-		Path output = outputPath(resource);
+		return writeReport(resource, recording, ticks, OUTPUT_ROOT);
+	}
+
+	private static Path writeReport(String resource, MovementRecording recording, List<TickTrace> ticks, Path outputRoot) throws IOException {
+		Path output = outputPath(resource, outputRoot);
 		Files.createDirectories(output.getParent());
 		Files.writeString(output, HTML.replace("__TRACE_DATA__", toJson(ticks)).replace("__RECORDING__", resource).replace("__RECORDING_NAME__", recordingName(resource)).replace("__CLIENT_PROTOCOL__", Integer.toString(recording.clientProtocolVersion())).replace("__SERVER_VERSION__", recording.serverVersion().getVersion()).replace("__ASSET_VERSION__", recording.serverVersion().getVersion()), StandardCharsets.UTF_8);
 		return output;
@@ -124,12 +131,12 @@ final class PtrBranchingVisualizationTest {
 		assertTrue(shouldVisualize(Path.of("enabled.ptr")));
 	}
 
-	private static Path outputPath(String resource) {
+	private static Path outputPath(String resource, Path outputRoot) {
 		if (!resource.startsWith(RECORDING_ROOT) || !resource.endsWith(".ptr")) {
 			throw new IllegalArgumentException("Unexpected PTR resource path: " + resource);
 		}
 		String relative = resource.substring(RECORDING_ROOT.length(), resource.length() - ".ptr".length()) + ".html";
-		return OUTPUT_ROOT.resolve(Path.of(relative));
+		return outputRoot.resolve(Path.of(relative));
 	}
 
 	private static String recordingName(String resource) {
