@@ -19,7 +19,7 @@ import de.jpx3.intave.block.inside.EntityMovement;
 import de.jpx3.intave.block.physics.BlockPhysics;
 import de.jpx3.intave.block.physics.BlockProperties;
 import de.jpx3.intave.block.shape.BlockShape;
-import de.jpx3.intave.block.type.MaterialSearch;
+import de.jpx3.intave.block.physics.BounceSuppression;
 import de.jpx3.intave.check.movement.physics.config.MovementConfiguration;
 import de.jpx3.intave.check.movement.physics.environment.MovementCharacteristics;
 import de.jpx3.intave.check.movement.physics.environment.Pose;
@@ -458,7 +458,8 @@ class BaseSimulator extends Simulator {
     MetadataBundle meta = user.meta();
     ProtocolMetadata protocol = meta.protocol();
 
-	  if (environment.motionMultiplier() != null) {
+    boolean storedVelocityCleared = environment.motionMultiplier() != null || environment.inWeb();
+    if (environment.motionMultiplier() != null) {
       motion.setNull();
       environment.resetMotionMultiplier();
     }
@@ -515,7 +516,7 @@ class BaseSimulator extends Simulator {
     updateFallStateAfter(user, environment, motion, environment.onGround());
 
     if (movementAttributes) {
-      restituteMovementAfterCollisions(user, environment, result, motion, gravity, airDragModifier);
+      restituteMovementAfterCollisions(user, environment, result, motion, gravity, airDragModifier, storedVelocityCleared);
     } else {
       if (environment.motionXReset()) {
         motion.setMotionX(0.0);
@@ -636,15 +637,14 @@ class BaseSimulator extends Simulator {
     }
   }
 
-  private final static Material HONEY_BLOCK = MaterialSearch.materialThatIsNamed("HONEY_BLOCK");
-
   private void restituteMovementAfterCollisions(
     User user,
     SimulationEnvironment environment,
     SimulationResult result,
     Motion motion,
     double gravity,
-    float airDragModifier
+    float airDragModifier,
+    boolean storedVelocityCleared
   ) {
     if (result == null) {
       return;
@@ -669,9 +669,15 @@ class BaseSimulator extends Simulator {
 
     boolean suppressingBounce = environment.isSneaking();
     double restitution = suppressingBounce ? 0.0D : user.meta().abilities().bounciness();
-    double currentMotionX = collisionInput.motionX;
-    double currentMotionY = collisionInput.motionY;
-    double currentMotionZ = collisionInput.motionZ;
+    // Entity.move collides the displacement (after stuck-speed/edge transforms),
+    // but restitution reads getDeltaMovement(), which a stuck-speed multiplier clears.
+    Motion currentMovement = storedVelocityCleared ? Motion.newEmpty() : result.actualMotion();
+    if (currentMovement == null) {
+      return;
+    }
+    double currentMotionX = currentMovement.motionX;
+    double currentMotionY = currentMovement.motionY;
+    double currentMotionZ = currentMovement.motionZ;
     if (xCollision) {
       motion.motionX = -currentMotionX * restitution;
     }
@@ -686,7 +692,7 @@ class BaseSimulator extends Simulator {
           ? -currentMotionY <= gravity : -currentMotionY < gravity;
         restitution = !belowBounceThreshold
           && !suppressingBounce
-          && (HONEY_BLOCK != null && !HONEY_BLOCK.equals(effectBlock))
+          && !BounceSuppression.suppresses(effectBlock)
           ? Math.max(restitution, BlockProperties.of(effectBlock).bounceRestitution())
           : 0.0D;
       }

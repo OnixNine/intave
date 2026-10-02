@@ -280,6 +280,33 @@ final class BaseSimulator262MovementAttributesTest {
   }
 
   @Test
+  void slimeCannotRestoreVelocityClearedByAWebBeforeCollision() {
+    for (String server : new String[]{"1.8.8", "1.21.4", "26.2"}) {
+      MinecraftVersion.setCurrent(new MinecraftVersion(server));
+      for (int protocol : new int[]{VER_26_2, VER_26_3}) {
+        for (boolean multiplier : new boolean[]{false, true}) {
+          TestContext context = context(protocol, materialPlane(Material.SLIME_BLOCK));
+          context.environment.setInWeb(!multiplier);
+          if (multiplier) {
+            context.environment.setMotionMultiplier(new org.bukkit.util.Vector(0.25D, 0.05F, 0.25D));
+          }
+          Motion slowedDisplacement = new Motion(0.0D, -0.1D, 0.0D);
+          Motion storedVelocity = multiplier ? slowedDisplacement.copy() : Motion.newEmpty();
+          SimulationResult collision = new SimulationResult(
+            storedVelocity, Motion.newEmpty(), slowedDisplacement,
+            true, false, true, false, false, false, false, 0.0D
+          );
+          Motion actual = simulateAfterTick(context, storedVelocity, collision, false, Material.SLIME_BLOCK);
+          // Entity.move clears stored velocity before colliding the slowed displacement.
+          // Restitution sees zero, then travel applies gravity and vertical drag.
+          assertEquals(-0.08D * 0.98F, actual.motionY, EPSILON,
+            "server=" + server + ", protocol=" + protocol + ", multiplier=" + multiplier);
+        }
+      }
+    }
+  }
+
+  @Test
   void shelfMushroomsBounceAndStrawBedsDoNot() {
     assertEquals(0.75F, BlockProperties.of(Material.valueOf("SHELF_MUSHROOM")).bounceRestitution());
     assertEquals(0.0F, BlockProperties.of(Material.valueOf("STRAW_BED")).bounceRestitution());
