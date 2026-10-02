@@ -36,6 +36,7 @@ public final class BlockPhysics {
 	public static void setup(
 		MinecraftVersion version
 	) {
+		BounceSuppression.setup(version);
 		materialLookup.clear();
 		setup(BedPhysics.class, version);
 		setup(SlimePhysics.class, version);
