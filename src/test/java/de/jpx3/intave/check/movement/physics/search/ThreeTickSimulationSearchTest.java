@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static de.jpx3.intave.check.movement.physics.search.PostTickMotionType.SIMULATED_MOTION;
+import static de.jpx3.intave.check.movement.physics.search.PostTickMotionType.SENT_OFFSET_MOTION;
 import static de.jpx3.intave.user.meta.ProtocolMetadata.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -125,6 +126,62 @@ final class ThreeTickSimulationSearchTest {
   }
 
   @Test
+  void activeFlightUsesSimulatedTravelMotionForPostTickVelocity() {
+    User user = user();
+    MovementMetadata environment = user.meta().movement();
+    Motion sentOffset = new Motion(0.4D, 0.5D, 0.6D);
+    environment.setLastPosition(POSITION);
+    environment.updateMovement(POSITION.add(sentOffset), Rotation.zero());
+    environment.setVerifiedLastPosition(POSITION, "flight after-tick candidate test seed");
+    environment.setSimulationResult(SimulationResult.untouched(MOTION.copy()));
+    environment.setLastMovementConfiguration(MovementConfiguration.blank());
+    user.meta().abilities().setAllowFlying(true);
+    user.meta().abilities().setFlying(true);
+
+    List<PostTickSimulation> candidates = new ThreeTickSimulationSearch(false)
+      .afterTickMotionCandidates(
+        user,
+        environment,
+        new SprintIndependentAfterTickSimulator(),
+        environment.position(),
+        SENT_OFFSET_MOTION
+      );
+
+    assertEquals(1, candidates.size());
+    assertTrue(candidates.stream().allMatch(candidate -> candidate.motion().equals(MOTION)));
+  }
+
+  @Test
+  void flightDisablePendingRetainsBothPostTickFlightStates() {
+    for (boolean selectedFlying : new boolean[] {true, false}) {
+      User user = user(VER_26_3);
+      MovementMetadata environment = user.meta().movement();
+      environment.setLastPosition(POSITION);
+      environment.updateMovement(POSITION.add(MOTION), Rotation.zero());
+      environment.setVerifiedLastPosition(POSITION, "flight transition candidate test seed");
+      environment.setSimulationResult(SimulationResult.untouched(MOTION.copy()));
+      environment.setLastMovementConfiguration(MovementConfiguration.blank());
+      user.meta().abilities().setAllowFlying(true);
+      user.meta().abilities().setFlying(true);
+      user.meta().abilities().disabledFlying = true;
+      environment.setFlying(selectedFlying);
+
+      List<PostTickSimulation> candidates = new ThreeTickSimulationSearch(false)
+        .afterTickMotionCandidates(
+          user,
+          environment,
+          new FlightStateAfterTickSimulator(),
+          environment.position(),
+          SENT_OFFSET_MOTION
+        );
+
+      assertEquals(2, candidates.size());
+      assertTrue(candidates.stream().anyMatch(candidate -> candidate.motion().motionY() == 1.0D));
+      assertTrue(candidates.stream().anyMatch(candidate -> candidate.motion().motionY() == -1.0D));
+    }
+  }
+
+  @Test
   void branchesTheBlockInsideCheckOnlyForSharedProtocol773() {
     List<PostTickSimulation> sharedProtocolCandidates = afterTickCandidates(
       user(VER_1_21_9), new BlockInsideVersionAfterTickSimulator()
@@ -170,6 +227,7 @@ final class ThreeTickSimulationSearchTest {
         case "getWorld" -> world;
         case "getLocation" -> location;
         case "getUniqueId" -> UUID.fromString("00000000-0000-0000-0000-000000000001");
+        case "isDead" -> false;
         default -> null;
       }
     );
@@ -246,5 +304,35 @@ final class ThreeTickSimulationSearchTest {
       return output;
     }
 
+  }
+
+  private static final class FlightStateAfterTickSimulator extends Simulator {
+    @Override
+    public Motion simulatePreTick(User user, Motion baseMotion, SimulationEnvironment environment) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Simulation simulateTick(
+      User user,
+      Motion motion,
+      SimulationEnvironment environment,
+      MovementConfiguration configuration
+    ) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Motion simulateAfterTick(
+      User user,
+      SimulationEnvironment environment,
+      MovementConfiguration configuration,
+      Position position,
+      Motion motion
+    ) {
+      Motion output = motion.copy();
+      output.motionY = environment.flying() ? 1.0D : -1.0D;
+      return output;
+    }
   }
 }

@@ -138,7 +138,8 @@ class BaseSimulator extends Simulator {
 
   private void handleSneakInWater(User user, Motion motion, SimulationEnvironment environment) {
     ProtocolMetadata protocol = user.meta().protocol();
-    boolean affectedByFluids = protocol.protocolVersion() < ProtocolMetadata.VER_1_17 || !user.meta().abilities().flying();
+    boolean affectedByFluids = protocol.protocolVersion() < ProtocolMetadata.VER_1_16_4
+      || !environment.flying();
     boolean sneakingAndInWater = environment.isSneaking() && environment.inWater();
     if (protocol.aquaticUpdate() && affectedByFluids && sneakingAndInWater) {
       motion.motionY -= 0.04F;
@@ -167,7 +168,9 @@ class BaseSimulator extends Simulator {
       boundingBox = boundingBox.grow(0.0D, -0.4000000059604645D, 0.0D);
       boundingBox = boundingBox.shrink(0.001D);
     }
-    environment.setInWater(user.fluidflow().applyWaterFlowTo(user, environment, baseMotion, boundingBox));
+    environment.setInWater(user.fluidflow().updateWaterState(
+      user, environment, baseMotion, boundingBox, isAffectedByFluids(environment)
+    ));
   }
 
   private void updateInLava(
@@ -179,8 +182,9 @@ class BaseSimulator extends Simulator {
     if (protocol.fluidHeightBasedLavaMovement()
       && (!afterMove || protocol.refreshesFluidStateAfterMove())) {
       environment.aquaticUpdateLavaReset();
-      user.fluidflow().applyLavaFlowTo(
-        user, environment, baseMotion, environment.boundingBox()
+      user.fluidflow().updateLavaState(
+        user, environment, baseMotion, environment.boundingBox(),
+        isAffectedByFluids(environment)
       );
     }
     if (environment.inLava()) {
@@ -253,13 +257,54 @@ class BaseSimulator extends Simulator {
       // #handleJumpLava
       motion.motionY += 0.04F;
     } else if (environment.lastOnGround()) {
-      motion.motionY = user.protocolVersion() >= 768 ?
-        Math.max(environment.jumpMotion(), environment.baseMotionY()) :
-        environment.jumpMotion();
-      if (configuration.isSprinting()) {
-        motion.motionX -= environment.yawSine() * 0.2F;
-        motion.motionZ += environment.yawCosine() * 0.2F;
+      simulateGroundJump(user, motion, environment, configuration);
+    }
+  }
+
+  private void simulateGroundJump(
+    User user,
+    Motion motion,
+    SimulationEnvironment environment,
+    MovementConfiguration configuration
+  ) {
+    motion.motionY = user.protocolVersion() >= ProtocolMetadata.VER_1_21_2
+      ? Math.max(environment.jumpMotion(), environment.baseMotionY())
+      : environment.jumpMotion();
+    if (configuration.isSprinting()) {
+      motion.motionX -= environment.yawSine() * 0.2F;
+      motion.motionZ += environment.yawCosine() * 0.2F;
+    }
+  }
+
+  private void simulateFlyingInput(
+    User user,
+    Motion motion,
+    SimulationEnvironment environment,
+    MovementConfiguration configuration
+  ) {
+    MetadataBundle meta = user.meta();
+    ProtocolMetadata protocol = meta.protocol();
+    boolean jumping = configuration.isJumping();
+    if (jumping
+      && meta.abilities().startedFlying()
+      && protocol.protocolVersion() >= ProtocolMetadata.VER_1_20_5
+      && environment.lastOnGround()) {
+      simulateGroundJump(user, motion, environment, configuration);
+    }
+
+    float flyingStep = meta.abilities().flySpeed() * 3.0F;
+    if (protocol.protocolVersion() >= ProtocolMetadata.VER_1_14) {
+      int verticalInput = (jumping ? 1 : 0) - (environment.isSneaking() ? 1 : 0);
+      if (verticalInput != 0) {
+        motion.motionY += (double) (verticalInput * flyingStep);
       }
+      return;
+    }
+    if (environment.isSneaking()) {
+      motion.motionY -= (double) flyingStep;
+    }
+    if (jumping) {
+      motion.motionY += (double) flyingStep;
     }
   }
 
@@ -291,9 +336,15 @@ class BaseSimulator extends Simulator {
     boolean inWater = environment.inWater();
     boolean inLava = environment.inLava();
     boolean swimming = environment.isSwimming();
+    boolean affectedByFluids = isAffectedByFluids(environment);
+    boolean flying = environment.flying() && !environment.isInVehicle();
+    boolean undoFlightSneakSlowdown = flying
+      && protocol.protocolVersion() >= ProtocolMetadata.VER_1_9
+      && protocol.protocolVersion() < ProtocolMetadata.VER_1_15
+      && environment.isSneaking();
     boolean crouching;
     if (protocol.beeUpdate()) {
-      crouching = !meta.abilities().flying()
+      crouching = !environment.flying()
         && !swimming
         && !environment.isInVehicle()
         && environment.isPoseClear(Pose.CROUCHING)
@@ -307,6 +358,7 @@ class BaseSimulator extends Simulator {
     }
     crouching = environment.resolveCrouchingInputSlowdown(crouching);
     boolean visuallyCrawling = protocol.applyModernCollider()
+      && !flying
       && !inWater
       && (pose == Pose.SWIMMING
         || (!environment.shouldHaveFallFlyingPose() && pose == Pose.FALL_FLYING));
@@ -327,8 +379,18 @@ class BaseSimulator extends Simulator {
       forward *= 0.2f;
       strafe *= 0.2f;
     }
+    if (undoFlightSneakSlowdown) {
+      // 1.9-1.14 first apply the ordinary 0.3 sneak slowdown in the input
+      // handler, then divide it back out here while flying.
+      forward = (float) ((double) forward / 0.3D);
+      strafe = (float) ((double) strafe / 0.3D);
+    }
 
-    simulateJump(user, motion, environment, configuration);
+    if (flying) {
+      simulateFlyingInput(user, motion, environment, configuration);
+    } else {
+      simulateJump(user, motion, environment, configuration);
+    }
     if (waterUpdate && swimming) {
       double d3 = environment.lookVector().getY();
       double d4 = d3 < -0.2D ? 0.085D : 0.06D;
@@ -338,12 +400,16 @@ class BaseSimulator extends Simulator {
         motion.motionY += (d3 - motion.motionY) * d4;
       }
     }
-    if (inWater) {
+    if (inWater && affectedByFluids) {
       performSimulationInWaterOfState(user, motion, environment, sprinting, forward, strafe, yawSine, yawCosine);
-    } else if (inLava) {
+    } else if (inLava && affectedByFluids) {
       performLavaSimulationOfState(motion, forward, strafe, yawSine, yawCosine);
     } else {
-      performDefaultMoveSimulationOfState(user, motion, environment, forward, strafe, yawSine, yawCosine, sprinting);
+      performDefaultMoveSimulationOfState(
+        user, motion, environment,
+        forward, strafe, yawSine, yawCosine,
+        sprinting, flying
+      );
     }
 
     Timings.CHECK_PHYSICS_SIMULATOR_BASE_COLLIDER.start();
@@ -385,9 +451,16 @@ class BaseSimulator extends Simulator {
     SimulationEnvironment environment,
     float moveForward, float moveStrafe,
     float yawSine, float yawCosine,
-    boolean sprinting
+    boolean sprinting,
+    boolean flying
   ) {
-    performRelativeMoveSimulationOfState(context, environment.friction(sprinting), yawSine, yawCosine, moveForward, moveStrafe);
+    float acceleration = environment.friction(sprinting);
+    if (flying && !environment.lastOnGround()) {
+      acceleration = user.meta().abilities().flySpeed() * (sprinting ? 2.0F : 1.0F);
+    }
+    performRelativeMoveSimulationOfState(
+      context, acceleration, yawSine, yawCosine, moveForward, moveStrafe
+    );
 
     boolean onClimbable = MovementCharacteristics.onClimbable(
       user,
@@ -395,6 +468,9 @@ class BaseSimulator extends Simulator {
       environment.verifiedLastPositionY(),
       environment.verifiedLastPositionZ()
     );
+    if (flying && user.meta().protocol().protocolVersion() >= ProtocolMetadata.VER_1_21_5) {
+      onClimbable = false;
+    }
 
     if (onClimbable) {
       float axisLimit = 0.15F;
@@ -444,6 +520,9 @@ class BaseSimulator extends Simulator {
     Position position, Motion motion
   ) {
     motion = motion.copy();
+    boolean affectedByFluids = isAffectedByFluids(environment);
+    boolean flying = environment.flying() && !environment.isInVehicle();
+    double flyingInputMotionY = motion.motionY;
     SimulationResult result = environment.simulationResult();
     Motion actualMoveMotion = result == null ? null : result.actualMotion();
     double motionYBeforeMove = actualMoveMotion == null ? motion.motionY : actualMoveMotion.motionY;
@@ -528,9 +607,9 @@ class BaseSimulator extends Simulator {
 
     simulateMovementOfCollidedBlocksAfter(user, environment, configuration, motion);
 
-    if (inWater) {
+    if (inWater && affectedByFluids) {
       simulateWaterAfter(user, environment, configuration, motion, gravity);
-    } else if (inLava) {
+    } else if (inLava && affectedByFluids) {
       simulateLavaAfter(
         user, environment, configuration, motion, gravity,
         fallingBeforeMove, lavaDepthBeforeMove
@@ -545,6 +624,15 @@ class BaseSimulator extends Simulator {
     if (user.meta().protocol().newBlockEntityIntersectionLogic()) {
       environment.aquaticUpdateLavaReset();
       applyEffectsFromBlocks(user, environment, configuration, motion);
+    }
+
+    if (flying) {
+      motion.motionY = flyingInputMotionY * 0.6D;
+      int protocolVersion = protocol.protocolVersion();
+      if (protocolVersion >= ProtocolMetadata.VER_1_9
+        && protocolVersion < ProtocolMetadata.VER_1_21_2) {
+        environment.resetFallDistance();
+      }
     }
 
     if (protocol.combatUpdate()
@@ -562,6 +650,12 @@ class BaseSimulator extends Simulator {
     }
 
     return motion;
+  }
+
+  private static boolean isAffectedByFluids(SimulationEnvironment environment) {
+    // Player.isAffectedByFluids: active ability flight still updates fluid occupancy,
+    // but fluid flow and LivingEntity's water/lava travel paths are bypassed.
+    return !environment.flying();
   }
 
   private void applyAttachedFireworkBoosts(
@@ -624,7 +718,7 @@ class BaseSimulator extends Simulator {
     }
 
     if (clientData.beeUpdate()
-      && !meta.abilities().flying()
+      && !environment.flying()
       && !environment.shouldHaveFallFlyingPose()) {
       int soulSandModifier = Enchantments.resolveSoulSpeedModifier(player);
       boolean movementEfficiencyAttribute = clientData.supportsMovementEfficiencyAttribute()

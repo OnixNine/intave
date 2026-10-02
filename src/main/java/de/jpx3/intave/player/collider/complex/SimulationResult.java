@@ -304,6 +304,17 @@ public final class SimulationResult {
 		return new SimulationResult(motion, motion, null, false, false, false, false, false, false, false, 0);
 	}
 
+	public SimulationResult withActualMotion(Motion actualMotion) {
+		if (this == INVALID_SIMULATION) {
+			return INVALID_SIMULATION;
+		}
+		return new SimulationResult(
+			actualMotion, offsetMotion, intermittentResult,
+			onGround, collidedHorizontally, collidedVertically,
+			resetMotionX, resetMotionZ, step, edgeSneak, yStepHeight
+		);
+	}
+
 	public SimulationResult copy() {
 		if (this == INVALID_SIMULATION) {
 			return INVALID_SIMULATION;

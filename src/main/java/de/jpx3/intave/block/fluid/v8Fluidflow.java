@@ -28,6 +28,15 @@ final class v8Fluidflow implements FluidFlow {
     User user, SimulationEnvironment environment,
     Motion baseMotion, BoundingBox boundingBox
   ) {
+    return updateWaterState(user, environment, baseMotion, boundingBox, true);
+  }
+
+  @Override
+  public boolean updateWaterState(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox,
+    boolean applyFlow
+  ) {
     Player player = user.player();
     World world = player.getWorld();
 	  int minX = ClientMath.floor(boundingBox.minX);
@@ -58,7 +67,7 @@ final class v8Fluidflow implements FluidFlow {
         }
       }
     }
-    if (inWater && flowVector != null && flowVector.length() > 0.0D) {
+    if (applyFlow && inWater && flowVector != null && flowVector.length() > 0.0D) {
       flowVector.normalize();
       double factor = 0.014D;
       baseMotion.motionX += flowVector.motionX * factor;
@@ -73,6 +82,15 @@ final class v8Fluidflow implements FluidFlow {
   public boolean applyLavaFlowTo(
     User user, SimulationEnvironment environment,
     Motion baseMotion, BoundingBox boundingBox
+  ) {
+    return updateLavaState(user, environment, baseMotion, boundingBox, true);
+  }
+
+  @Override
+  public boolean updateLavaState(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox,
+    boolean applyFlow
   ) {
     return false;
   }

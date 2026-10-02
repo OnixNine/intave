@@ -328,6 +328,11 @@ public interface SimulationEnvironment {
   boolean isSwimming();
   void setSwimming(boolean swimming);
 
+  boolean flying();
+  void setFlying(boolean flying);
+  boolean flyingDisablePending();
+  void setFlyingDisablePending(boolean pending);
+
   boolean isSleeping();
   void setSleeping(boolean sleeping);
 
@@ -766,7 +771,7 @@ public interface SimulationEnvironment {
   default void updateSwimming(boolean sprinting) {
     ProtocolMetadata protocol = user().meta().protocol();
     if (!protocol.swimmingMechanics()
-      || user().meta().abilities().flying()
+      || flying()
       || isInVehicle()) {
       setSwimming(false);
       return;
@@ -810,7 +815,8 @@ public interface SimulationEnvironment {
     } else {
       actualSneaking = sneakingAllowed;
     }
-    return actualSneaking;
+    // Player.getDesiredPose applies this after resolving the current/previous sneak input.
+    return actualSneaking && (protocol.protocolVersion() < VER_1_14 || !flying());
   }
 
   @Nullable

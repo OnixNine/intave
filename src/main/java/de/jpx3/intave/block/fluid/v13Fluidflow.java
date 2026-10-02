@@ -36,6 +36,15 @@ final class v13Fluidflow implements FluidFlow {
     User user, SimulationEnvironment environment,
     Motion baseMotion, BoundingBox boundingBox
   ) {
+    return updateWaterState(user, environment, baseMotion, boundingBox, true);
+  }
+
+  @Override
+  public boolean updateWaterState(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox,
+    boolean applyFlow
+  ) {
     BoundingBox wrappedBoundingBox = boundingBox.shrink(0.001D);
     int minX = floor(wrappedBoundingBox.minX);
     int minY = floor(wrappedBoundingBox.minY);
@@ -74,7 +83,7 @@ final class v13Fluidflow implements FluidFlow {
       }
     }
 
-    if (waterFlowTotal != null && waterFlowTotal.length() > 0.0D) {
+    if (applyFlow && waterFlowTotal != null && waterFlowTotal.length() > 0.0D) {
       if (countedWaterCollisions > 0) {
         waterFlowTotal.multiply(1.0D / (double) countedWaterCollisions);
       }
@@ -100,6 +109,15 @@ final class v13Fluidflow implements FluidFlow {
   public boolean applyLavaFlowTo(
     User user, SimulationEnvironment environment,
     Motion baseMotion, BoundingBox boundingBox
+  ) {
+    return updateLavaState(user, environment, baseMotion, boundingBox, true);
+  }
+
+  @Override
+  public boolean updateLavaState(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox,
+    boolean applyFlow
   ) {
     BoundingBox wrappedBoundingBox = boundingBox.shrink(0.001D);
     int minX = floor(wrappedBoundingBox.minX);
@@ -154,7 +172,7 @@ final class v13Fluidflow implements FluidFlow {
       environment.setLavaDepth(largestFluidDepth);
     }
 
-    if (lavaFlowTotal != null && countedLavaCollisions > 0) {
+    if (applyFlow && lavaFlowTotal != null && countedLavaCollisions > 0) {
       boolean currentPresent = user.meta().protocol().refreshesFluidStateAfterMove()
         ? lavaFlowTotal.lengthSquared() >= (double) 1.0E-5F
         : lavaFlowTotal.length() > 0.0D;

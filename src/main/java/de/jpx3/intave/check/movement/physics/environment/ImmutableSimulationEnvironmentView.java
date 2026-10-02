@@ -422,6 +422,26 @@ final class ImmutableSimulationEnvironmentView implements SimulationEnvironment 
 	}
 
 	@Override
+	public boolean flying() {
+		return delegate.flying();
+	}
+
+	@Override
+	public void setFlying(boolean flying) {
+		throw new UnsupportedOperationException("Cannot modify unmodifiable view");
+	}
+
+	@Override
+	public boolean flyingDisablePending() {
+		return delegate.flyingDisablePending();
+	}
+
+	@Override
+	public void setFlyingDisablePending(boolean pending) {
+		throw new UnsupportedOperationException("Cannot modify unmodifiable view");
+	}
+
+	@Override
 	public boolean isSleeping() {
 		return delegate.isSleeping();
 	}

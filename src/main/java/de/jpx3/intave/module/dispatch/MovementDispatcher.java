@@ -32,10 +32,9 @@ import de.jpx3.intave.block.variant.BlockVariant;
 import de.jpx3.intave.check.CheckService;
 import de.jpx3.intave.check.movement.Physics;
 import de.jpx3.intave.check.movement.Timer;
-import de.jpx3.intave.check.movement.physics.update.MotionAddUpdate;
-import de.jpx3.intave.check.movement.physics.update.MotionSetUpdate;
 import de.jpx3.intave.check.movement.physics.update.PistonActionUpdate;
 import de.jpx3.intave.check.movement.physics.update.ShulkerBoxActionUpdate;
+import de.jpx3.intave.check.movement.physics.update.MotionUpdate;
 import de.jpx3.intave.check.world.InteractionRaytrace;
 import de.jpx3.intave.executor.Synchronizer;
 import de.jpx3.intave.math.Hypot;
@@ -247,6 +246,7 @@ public final class MovementDispatcher extends Module {
     User user = UserRepository.userOf(player);
     MetadataBundle meta = user.meta();
     meta.movement().replaceRecoveryWithExternalTeleport();
+    meta.movement().discardVelocityBefore(Long.MAX_VALUE);
     ViolationMetadata violationLevelData = meta.violationLevel();
     violationLevelData.physicsVelocityVL = 0;
     violationLevelData.physicsVL = Math.max(0, violationLevelData.physicsVL - 10);
@@ -920,29 +920,28 @@ public final class MovementDispatcher extends Module {
 
       Motion finalVelocity = motion.copy();
 
-      AtomicReference<MotionSetUpdate> velocity = new AtomicReference<>(null);
-      PhysicsTestRecorder recorder = Modules.physicsTestRecorder();
-      AtomicReference<PhysicsTestRecorder.VelocityCapture> recordingVelocity = new AtomicReference<>(null);
-      user.doubleTickFeedback(event,
-        () -> {
-          recordingVelocity.set(
-            recorder.beginVelocity(user, finalVelocity)
-          );
-          velocity.set(MotionSetUpdate.openEnded(
-            finalVelocity,
-            movementData
-          ));
-          movementData.queueTickAmbiguousUpdate(velocity.get());
-        },
-        () -> {
-          recorder.completeVelocity(recordingVelocity.get());
-          MotionSetUpdate myMotionSetUpdate = velocity.get();
-          if (myMotionSetUpdate != null) {
-            myMotionSetUpdate.canNotRunAfterThisTick(movementData);
+      movementData.teleportLock.lock();
+      try {
+        MotionUpdate velocity = MotionUpdate.pendingReplacement(finalVelocity);
+        movementData.trackVelocity(velocity);
+        PhysicsTestRecorder recorder = Modules.physicsTestRecorder();
+        AtomicReference<PhysicsTestRecorder.VelocityCapture> recordingVelocity = new AtomicReference<>(null);
+        user.doubleTickFeedback(event,
+          () -> {
+            recordingVelocity.set(
+              recorder.beginVelocity(user, finalVelocity)
+            );
+            velocity.activate(movementData);
+          },
+          () -> {
+            recorder.completeVelocity(recordingVelocity.get());
+            velocity.canNotRunAfterThisTick(movementData);
+            movementData.pendingVelocityPackets.decrementAndGet();
           }
-          movementData.pendingVelocityPackets.decrementAndGet();
-        }
-      );
+        );
+      } finally {
+        movementData.teleportLock.unlock();
+      }
 
       movementData.activeTick(RECEIVED_VELOCITY_PACKET);
     }
@@ -961,23 +960,22 @@ public final class MovementDispatcher extends Module {
     MovementMetadata movement = user.meta().movement();
     Motion knockback = reader.motion();
     if (knockback != null) {
-      AtomicReference<MotionAddUpdate> update = new AtomicReference<>(null);
-      user.doubleTickFeedback(event,
-        () -> {
-          update.set(MotionAddUpdate.openEnded(
-            knockback,
-            movement
-          ));
-          movement.queueTickAmbiguousUpdate(update.get());
-        },
-        () -> {
-          MotionAddUpdate myMotionAddUpdate = update.get();
-          if (myMotionAddUpdate != null) {
-            myMotionAddUpdate.canNotRunAfterThisTick(movement);
+      movement.teleportLock.lock();
+      try {
+        MotionUpdate update = MotionUpdate.pendingAddition(knockback);
+        movement.trackVelocity(update);
+        user.doubleTickFeedback(event,
+          () -> {
+            update.activate(movement);
+          },
+          () -> {
+            update.canNotRunAfterThisTick(movement);
+            movement.pendingVelocityPackets.decrementAndGet();
           }
-          movement.pendingVelocityPackets.decrementAndGet();
-        }
-      );
+        );
+      } finally {
+        movement.teleportLock.unlock();
+      }
     }
   }
 

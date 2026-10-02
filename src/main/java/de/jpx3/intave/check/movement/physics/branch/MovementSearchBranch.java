@@ -38,6 +38,7 @@ public final class MovementSearchBranch {
 	private static final int ROTATION = 15;
 	private static final int SPRINTING = 16;
 	private static final int USE_LAST_MOVEMENT_CONFIG = 17;
+	private static final int FLYING = 18;
 
 	private final static MovementSearchBranch BLANK = new MovementSearchBranch(
 		MovementConfiguration.blank(), UnaryOperator.identity(), false, true, INITIAL_FREQUENCY_KEY
@@ -162,6 +163,13 @@ public final class MovementSearchBranch {
 
 	public MovementSearchBranch withJumped(boolean jumped) {
 		return withMoveConfig(configuration.withJumped(jumped), JUMPED, booleanValue(jumped));
+	}
+
+	MovementSearchBranch withFlying(boolean flying) {
+		return modifyAfter(environment -> {
+			environment.setFlying(flying);
+			return environment;
+		}, FLYING, booleanValue(flying));
 	}
 
 	public MovementSearchBranch withPredictedJumped(boolean jumped) {

@@ -610,6 +610,10 @@ public interface User {
 
   void teleport(PositionMoveRotation change, Set<Relative> relativeSet);
 
+  void movementCorrection(PositionMoveRotation change);
+
+  void movementCorrection(MovementCorrection correction);
+
   void sendVelocity(Motion motion);
 
   /**

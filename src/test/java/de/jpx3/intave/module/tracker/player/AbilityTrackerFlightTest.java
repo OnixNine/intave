@@ -40,11 +40,16 @@ final class AbilityTrackerFlightTest {
     toggle(tracker, user, true, false);
     assertTrue(abilities.flying());
     assertTrue(abilities.acknowledgedFlying());
+    assertTrue(abilities.startedFlying());
     assertFalse(abilities.acknowledgeFlying(true), "A later server echo must not duplicate the toggle");
+
+    abilities.tickComplete();
+    assertFalse(abilities.startedFlying());
 
     toggle(tracker, user, false, false);
     assertFalse(abilities.acknowledgedFlying());
     assertTrue(abilities.flying(), "Keep predicted flight until the existing tick boundary");
+    assertTrue(abilities.disabledFlying, "The next movement tick has ambiguous flight ordering");
     abilities.tickComplete();
     assertFalse(abilities.flying());
   }

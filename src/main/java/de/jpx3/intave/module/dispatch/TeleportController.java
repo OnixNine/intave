@@ -229,7 +229,7 @@ public final class TeleportController implements PacketEventSubscriber {
 				try {
 					if (!movement.isRecovering(recovery)) return;
 					movement.finishRecoveryOnNextTeleport(recovery);
-					teleport(user, snapshot, Relative.RELATIVE_ROTATION, onGround);
+					teleport(user, snapshot, Relative.RELATIVE_ROTATION, onGround, true);
 				} finally {
 					movement.teleportLock.unlock();
 				}
@@ -322,6 +322,7 @@ public final class TeleportController implements PacketEventSubscriber {
 				teleports.pollFirst();
 				first.accept();
 				expected.applyTo(movementData);
+				movementData.discardVelocityBefore(first.uniqueId());
 				// Rotation is not validated, so trust the client's view: relative rotations are
 				// resolved against its current view, which we may not know exactly. The teleport
 				// also starts a new rotation baseline, as it is not a turn made by the player.
@@ -390,6 +391,8 @@ public final class TeleportController implements PacketEventSubscriber {
 			// Keep the logical sequence and wire ID: native server teleports still
 			// require their original acknowledgement. Callback identity belongs to
 			// this transmission instance, not to the logical request or packet ID.
+			target = new PositionMoveRotation(target.position(),
+				movementData.preserveVelocity(target.motion(), latest.uniqueId()), target.rotation());
 			Teleport retry = Teleport.of(latest.uniqueId(), latest.id(), target,
 				EnumSet.noneOf(Relative.class), onGround, MinecraftVersions.VER1_21_3.atOrAbove());
 			teleports.clear();
@@ -400,15 +403,18 @@ public final class TeleportController implements PacketEventSubscriber {
 	}
 
 	public void teleport(User user, PositionMoveRotation change, Set<Relative> relativeSet) {
-		teleport(user, change, relativeSet, null);
+		teleport(user, change, relativeSet, null, false);
 	}
 
-	private void teleport(User user, PositionMoveRotation change, Set<Relative> relativeSet, Boolean onGround) {
+	private void teleport(User user, PositionMoveRotation change, Set<Relative> relativeSet, Boolean onGround, boolean preserveServerMotion) {
 		MovementMetadata movement = user.meta().movement();
 		movement.teleportLock.lock();
 		try {
 			if (!movement.pendingTeleports.get().isEmpty()) return;
 			movement.replaceRecoveryWithExternalTeleport();
+			if (preserveServerMotion) {
+				change = new PositionMoveRotation(change.position(), movement.preserveVelocity(change.motion(), -1), change.rotation());
+			}
 			OptionalInt id = user.meta().protocol().supportsTeleportAccepts()
 				? OptionalInt.of(-ThreadLocalRandom.current().nextInt(1, Integer.MAX_VALUE))
 				: OptionalInt.empty();

@@ -17,9 +17,33 @@ import de.jpx3.intave.share.Motion;
 import de.jpx3.intave.user.User;
 
 public interface FluidFlow {
-  boolean applyWaterFlowTo(User user, SimulationEnvironment environment, Motion baseMotion, BoundingBox boundingBox);
+  boolean applyWaterFlowTo(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox
+  );
 
-  boolean applyLavaFlowTo(User user, SimulationEnvironment environment, Motion baseMotion, BoundingBox boundingBox);
+  boolean applyLavaFlowTo(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox
+  );
+
+  default boolean updateWaterState(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox,
+    boolean applyFlow
+  ) {
+    Motion flowTarget = applyFlow ? baseMotion : Motion.newEmpty();
+    return applyWaterFlowTo(user, environment, flowTarget, boundingBox);
+  }
+
+  default boolean updateLavaState(
+    User user, SimulationEnvironment environment,
+    Motion baseMotion, BoundingBox boundingBox,
+    boolean applyFlow
+  ) {
+    Motion flowTarget = applyFlow ? baseMotion : Motion.newEmpty();
+    return applyLavaFlowTo(user, environment, flowTarget, boundingBox);
+  }
 
   double fluidDepthAt(User user, BoundingBox boundingBox);
 

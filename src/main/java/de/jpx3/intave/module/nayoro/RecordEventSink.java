@@ -73,9 +73,10 @@ final class RecordEventSink extends EventSink {
         writeLock.unlock();
       }
       PlayerContainer player = environment.mainPlayer();
+      int serverVersion = ProtocolVersionConverter.protocolVersionBy(MinecraftVersion.current());
       visit(new PlayerInitEvent(
         player.name(), player.uuid(), player.id(), player.version(),
-        ProtocolVersionConverter.protocolVersionBy(MinecraftVersion.current()),
+        serverVersion,
         SampleTypes.position(player.position()), SampleTypes.rotation(player.rotation()),
         player.flying()
       ));

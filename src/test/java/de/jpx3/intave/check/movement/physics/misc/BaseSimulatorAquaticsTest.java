@@ -154,6 +154,37 @@ final class BaseSimulatorAquaticsTest {
 	}
 
 	@Test
+	void late116FlyingPlayerIsNotMovedDownByFluidSneak() {
+		TestContext context = context(VER_1_16_4, true, Motion.newEmpty(), new MockFullBlockStaticPlane());
+		context.user.meta().abilities().setFlying(true);
+		context.environment.setSneaking(true);
+
+		Motion result = Simulators.PLAYER.simulatePreTick(
+			context.user, Motion.newEmpty(), context.environment
+		);
+
+		assertEquals(0.0, result.motionY, EPSILON);
+	}
+
+	@Test
+	void flyingPlayerDetectsWaterWithoutReceivingFlowAcrossVersions() {
+		for (int protocolVersion : new int[] {VER_1_8, VER_1_15, VER_1_15_2, VER_26_3}) {
+			TestContext context = context(
+				protocolVersion, true, new Motion(0.02, 0.0, 0.0),
+				new MockFullBlockStaticPlane()
+			);
+			context.user.meta().abilities().setFlying(true);
+
+			Motion result = Simulators.PLAYER.simulatePreTick(
+				context.user, Motion.newEmpty(), context.environment
+			);
+
+			assertEquals(0.0, result.motionX, EPSILON);
+			assertTrue(context.environment.inWater());
+		}
+	}
+
+	@Test
 	void preAquaticClientDoesNotApplyFluidSneakDescent() {
 		TestContext context = context(VER_1_12, true, Motion.newEmpty(), new MockFullBlockStaticPlane());
 		context.environment.setSneaking(true);

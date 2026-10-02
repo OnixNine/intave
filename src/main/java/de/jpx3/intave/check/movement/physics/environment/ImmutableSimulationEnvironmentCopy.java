@@ -57,6 +57,8 @@ final class ImmutableSimulationEnvironmentCopy implements SimulationEnvironment 
 	private final boolean sneaking, sprinting, hasSprintSpeed, sprintingAllowed;
 	private final boolean lastSprinting;
 	private final boolean swimming;
+	private final boolean flying;
+	private final boolean flyingDisablePending;
 	private final boolean inWater, inLava, inWeb;
 	private final double lavaDepth;
 	private final boolean onGround, lastOnGround, collidedHorizontally, collidedVertically;
@@ -151,6 +153,8 @@ final class ImmutableSimulationEnvironmentCopy implements SimulationEnvironment 
 		this.sprinting = source.isSprinting();
 		this.lastSprinting = source.lastSprinting();
 		this.swimming = source.isSwimming();
+		this.flying = source.flying();
+		this.flyingDisablePending = source.flyingDisablePending();
 		this.areEyesInWater = source.areEyesInWater();
 		this.hasSprintSpeed = source.hasSprintSpeed();
 		this.sprintingAllowed = source.sprintingAllowed();
@@ -575,6 +579,26 @@ final class ImmutableSimulationEnvironmentCopy implements SimulationEnvironment 
 
 	@Override
 	public void setSwimming(boolean swimming) {
+		throw immutableCopyException();
+	}
+
+	@Override
+	public boolean flying() {
+		return flying;
+	}
+
+	@Override
+	public void setFlying(boolean flying) {
+		throw immutableCopyException();
+	}
+
+	@Override
+	public boolean flyingDisablePending() {
+		return flyingDisablePending;
+	}
+
+	@Override
+	public void setFlyingDisablePending(boolean pending) {
 		throw immutableCopyException();
 	}
 
@@ -1165,6 +1189,8 @@ final class ImmutableSimulationEnvironmentCopy implements SimulationEnvironment 
 		}
 		other.setJumpMotion(jumpMotion);
 		other.setSwimming(swimming);
+		other.setFlying(flying);
+		other.setFlyingDisablePending(flyingDisablePending);
 		other.setInWater(inWater);
 		other.setInLava(inLava);
 		other.setLavaDepth(lavaDepth);

@@ -75,7 +75,6 @@ import de.jpx3.intave.share.Motion;
 import de.jpx3.intave.share.MovementCorrection;
 import de.jpx3.intave.share.Position;
 import de.jpx3.intave.share.PositionMoveRotation;
-import de.jpx3.intave.module.dispatch.MovementDispatcher;
 import de.jpx3.intave.user.MessageChannel;
 import de.jpx3.intave.user.User;
 import de.jpx3.intave.user.UserRepository;
@@ -204,6 +203,8 @@ public final class Physics extends Check {
       // selected branch's base-tick transition and advance sprint provenance even
       // though its speculative movement is discarded. With no position delta to
       // distinguish histories, retained motions follow that selected state branch.
+      movementData.setFlying(simulationEnvironment.flying());
+      movementData.setFlyingDisablePending(simulationEnvironment.flyingDisablePending());
       movementData.setSwimming(simulationEnvironment.isSwimming());
       movementData.setLastMovementConfiguration(simulation.configuration());
       List<PostTickSimulation> advancedCandidates = new ArrayList<>();
@@ -390,7 +391,8 @@ public final class Physics extends Check {
     int keyForward = movementData.keyForward;
     int keyStrafe = movementData.keyStrafe;
 
-    boolean flying = abilityData.probablyFlying() || abilityData.allowFlying();
+    boolean flying = abilityData.flying();
+    boolean flightFallDamageImmune = abilityData.probablyFlying() || abilityData.allowFlying();
     StringBuilder key = new StringBuilder(resolveKeysFromInput(keyForward, keyStrafe));
 
     double receivedOffsetMotionX = movementData.offsetMotionX();
@@ -598,7 +600,7 @@ public final class Physics extends Check {
       }
     }
 
-    if (flying || spectator) {
+    if (spectator) {
       violationLevelIncrease = 0;
     }
 
@@ -672,8 +674,7 @@ public final class Physics extends Check {
         Violation violation = Violation.builderFor(Physics.class)
           .forPlayer(player).withMessage(message).withDetails(details).withVL(0).build();
         Modules.violationProcessor().processViolation(violation);
-        Modules.find(MovementDispatcher.class).teleports().movementCorrection(user,
-          PositionMoveRotation.withoutRotation(verifiedPosition, Motion.newEmpty()));
+        user.movementCorrection(PositionMoveRotation.withoutRotation(verifiedPosition, Motion.newEmpty()));
       }
     }
 
@@ -826,14 +827,14 @@ public final class Physics extends Check {
           manualOverrideDistance = 0.75;
           break;
         case CAREFUL:
-          setback = deepPitchViolationOverflow || (highPitchViolationOverflow && (violationLevelAfter > 20 || highPitchAggressiveViolationOverflow || user.justJoined()));
+          setback = deepPitchViolationOverflow || (highPitchViolationOverflow && (violationLevelAfter > 20 || highPitchAggressiveViolationOverflow));
           if (receivedOffsetMotionY > Math.max(0.42f, movementData.jumpMotion()) + 0.01) {
             setback = true;
           }
           manualOverrideDistance = 0.75;
           break;
         case LENIENT:
-          setback = deepPitchViolationOverflow || (highPitchViolationOverflow && (freeOfColliders || violationLevelIncrease > 50) && (violationLevelAfter > 30 || highPitchAggressiveViolationOverflow || user.justJoined()));
+          setback = deepPitchViolationOverflow || (highPitchViolationOverflow && (freeOfColliders || violationLevelIncrease > 50) && (violationLevelAfter > 30 || highPitchAggressiveViolationOverflow));
           if (receivedOffsetMotionY > Math.max(0.42f, movementData.jumpMotion()) + 0.01) {
             setback = true;
           }
@@ -844,7 +845,7 @@ public final class Physics extends Check {
           boolean velocityFlag = velocityDetected && violationLevelAfter > 30 && (verticalViolationIncrease >= 100 || horizontalViolationIncrease >= 100);
           setback =
             (distanceMoved > (violationLevelAfter > 80 ? 0.5 : 0.7) || violationLevelAfter > 200 || flagAnywayss || velocityFlag)
-              && deepPitchViolationOverflow && (highPitchAggressiveViolationOverflow || violationLevelAfter > 200 || user.justJoined());
+              && deepPitchViolationOverflow && (highPitchAggressiveViolationOverflow || violationLevelAfter > 200);
           manualOverrideDistance = 1;
           break;
         case SILENT:
@@ -901,6 +902,10 @@ public final class Physics extends Check {
         setback = true;
       }
 
+      if (user.justJoined()) {
+        setback = true;
+      }
+
       if (user.trustFactor().atLeast(TrustFactor.BYPASS)) {
         setback = false;
       }
@@ -913,7 +918,7 @@ public final class Physics extends Check {
         // resend attributes
         statisticApply(user, CheckStatistics::increaseFails);
         MovementCorrection nextTick = simulation.setbackPosition(user, 0);
-        Modules.find(MovementDispatcher.class).teleports().movementCorrection(user, nextTick);
+        user.movementCorrection(nextTick);
         refreshNearbyBlocks(user, positionX, positionY, positionZ);
         movementData.invalidMovement = true;
       }
@@ -935,7 +940,7 @@ public final class Physics extends Check {
     violationLevelData.physicsVL = MathHelper.minmax(0, violationLevelData.physicsVL, 150);
 
     Pose pose = movementData.pose();
-    if (movementData.onLadderLast || pose == Pose.FALL_FLYING || flying) {
+    if (movementData.onLadderLast || pose == Pose.FALL_FLYING || flightFallDamageImmune) {
       movementData.artificialFallDistance = 0;
     }
 

@@ -51,6 +51,7 @@ public final class AbilityMetadata {
   private boolean flying;
   private boolean acknowledgedFlying;
   private boolean allowFlying;
+  private boolean startedFlying;
   public boolean disabledFlying;
 
   private AbilityTracker.GameMode gameMode = NOT_SET;
@@ -524,7 +525,14 @@ public final class AbilityMetadata {
   }
 
   public synchronized boolean acknowledgeClientFlying(boolean flying) {
-    return allowFlying && recordFlying(flying);
+    if (!allowFlying) {
+      return false;
+    }
+    boolean changed = recordFlying(flying);
+    if (changed && flying) {
+      startedFlying = true;
+    }
+    return changed;
   }
 
   private boolean recordFlying(boolean flying) {
@@ -537,6 +545,14 @@ public final class AbilityMetadata {
 
   public boolean allowFlying() {
     return allowFlying;
+  }
+
+  public synchronized boolean startedFlying() {
+    return startedFlying;
+  }
+
+  public synchronized void setStartedFlying(boolean startedFlying) {
+    this.startedFlying = startedFlying;
   }
 
   public float flySpeed() {
@@ -575,6 +591,7 @@ public final class AbilityMetadata {
       setFlying(false);
       disabledFlying = false;
     }
+    setStartedFlying(false);
   }
 
   public void setPendingGameMode(AbilityTracker.GameMode pendingGameMode) {

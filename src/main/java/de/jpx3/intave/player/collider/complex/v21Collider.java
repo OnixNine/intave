@@ -50,7 +50,9 @@ public final class v21Collider implements Collider {
 
     // "maybeBackOffFromEdge"
     boolean edgeSneak = false;
-    if (environment.onGround() && environment.isSneaking()) {
+    if (environment.onGround()
+      && environment.isSneaking()
+      && !environment.flying()) {
       edgeSneak = calculateBackOffFromEdge(user, environment, environment.stepHeight(), offsetMotion);
     }
 

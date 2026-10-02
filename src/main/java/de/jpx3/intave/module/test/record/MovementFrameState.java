@@ -243,6 +243,7 @@ public final class MovementFrameState {
 				.field("flying", ByteBufStreamCodecs.BOOLEAN, () -> false)
 				.field("allowFlying", ByteBufStreamCodecs.BOOLEAN, () -> false)
 				.field("disabledFlying", ByteBufStreamCodecs.BOOLEAN, () -> false)
+				.field("startedFlying", ByteBufStreamCodecs.BOOLEAN, () -> false)
 				.field("flySpeed", ByteBufStreamCodecs.FLOAT, () -> 0.1F)
 				.field("gameMode", ByteBufStreamCodecs.STRING, () -> GameMode.SURVIVAL.name())
 				.build();
@@ -250,16 +251,18 @@ public final class MovementFrameState {
 		private final boolean flying;
 		private final boolean allowFlying;
 		private final boolean disabledFlying;
+		private final boolean startedFlying;
 		private final float flySpeed;
 		private final String gameMode;
 
 		public AbilityState(
-			boolean flying, boolean allowFlying, boolean disabledFlying,
+			boolean flying, boolean allowFlying, boolean disabledFlying, boolean startedFlying,
 			float flySpeed, String gameMode
 		) {
 			this.flying = flying;
 			this.allowFlying = allowFlying;
 			this.disabledFlying = disabledFlying;
+			this.startedFlying = startedFlying;
 			this.flySpeed = flySpeed;
 			this.gameMode = Objects.requireNonNull(gameMode, "gameMode");
 		}
@@ -269,6 +272,7 @@ public final class MovementFrameState {
 			GameMode gameMode = user.player().getGameMode();
 			return new AbilityState(
 				abilities.flying(), abilities.allowFlying(), abilities.disabledFlying,
+				abilities.startedFlying(),
 				abilities.flySpeed(), gameMode == null ? GameMode.SURVIVAL.name() : gameMode.name()
 			);
 		}
@@ -276,13 +280,14 @@ public final class MovementFrameState {
 		public static AbilityState empty() {
 			// Matches FakePlayerFactory's historical 0.2F getFlySpeed response after
 			// AbilityMetadata applies its client-speed division.
-			return new AbilityState(false, false, false, 0.1F, GameMode.SURVIVAL.name());
+			return new AbilityState(false, false, false, false, 0.1F, GameMode.SURVIVAL.name());
 		}
 
 		void applyTo(AbilityMetadata abilities) {
 			abilities.setAllowFlying(allowFlying);
 			abilities.setFlying(flying);
 			abilities.disabledFlying = disabledFlying;
+			abilities.setStartedFlying(startedFlying);
 			abilities.setFlySpeed(flySpeed);
 			AbilityTracker.GameMode replayGameMode = AbilityTracker.GameMode.fromBukkit(gameMode());
 			abilities.setGameMode(replayGameMode);
@@ -316,13 +321,14 @@ public final class MovementFrameState {
 			AbilityState other = (AbilityState) obj;
 			return flying == other.flying && allowFlying == other.allowFlying
 				&& disabledFlying == other.disabledFlying
+				&& startedFlying == other.startedFlying
 				&& Float.compare(flySpeed, other.flySpeed) == 0
 				&& gameMode.equals(other.gameMode);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(flying, allowFlying, disabledFlying, flySpeed, gameMode);
+			return Objects.hash(flying, allowFlying, disabledFlying, startedFlying, flySpeed, gameMode);
 		}
 	}
 

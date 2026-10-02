@@ -41,13 +41,16 @@ final class JumpBrancher extends MovementSearchBrancher {
     MovementMetadata movement = user.meta().movement();
     ProtocolMetadata protocol = user.meta().protocol();
     boolean estimatedJump = Math.abs(environment.offsetMotionY() - environment.jumpMotion()) < 0.0001;
+    boolean flightInput = environment.flying() && !environment.isInVehicle();
 
     int writtenOutputBranches = 0;
     for (boolean jumped : estimatedJump ? OPTIMISTIC : PESSIMISTIC) {
-      if (jumped && restricted && !environment.lastOnGround() && !environment.inWater() && !environment.inLava()) {
+      if (jumped && restricted && !flightInput
+        && !environment.lastOnGround() && !environment.inWater() && !environment.inLava()) {
         continue;
       }
-      if (jumped && environment.denyJump()) {
+      if (jumped && environment.denyJump()
+        && (!flightInput || user.meta().inventory().inventoryOpen())) {
         continue;
       }
       if (!jumped && restricted && inputBranch.moveConfig().isSprinting() && environment.isSneaking() && !protocol.combatUpdate()) {
@@ -58,7 +61,8 @@ final class JumpBrancher extends MovementSearchBrancher {
         boolean claimedJumping = sentInput.jumpKey();
         // user can press jump, tell us he's jumping, but the client not actually jump
         // we can only enforce it so that if he didn't claim pressing jump, he is not allowed to
-        if (jumped && !claimedJumping) {
+        // Active flight is different: LocalPlayer applies the reported key directly to vertical input.
+        if (flightInput ? jumped != claimedJumping : jumped && !claimedJumping) {
           continue;
         }
       }

@@ -19,6 +19,7 @@ import de.jpx3.intave.share.Motion;
 import de.jpx3.intave.user.User;
 
 import static de.jpx3.intave.share.Direction.Axis.*;
+import static de.jpx3.intave.user.meta.ProtocolMetadata.VER_1_16_4;
 import static de.jpx3.intave.user.meta.ProtocolMetadata.VER_1_20_5;
 
 public final class v14Collider implements Collider {
@@ -43,7 +44,9 @@ public final class v14Collider implements Collider {
 
     // "maybeBackOffFromEdge"
     boolean edgeSneak = false;
-    if (environment.onGround() && environment.isSneaking()) {
+    boolean flyingEdgeBackoffDisabled = user.protocolVersion() >= VER_1_16_4
+      && environment.flying();
+    if (environment.onGround() && environment.isSneaking() && !flyingEdgeBackoffDisabled) {
       edgeSneak = calculateBackOffFromEdge(user, environment, environment.stepHeight(), offsetMotion);
     }
 

@@ -80,6 +80,8 @@ final class MutableSimulationEnvironmentView implements SimulationEnvironment {
   private boolean crouchingInputSlowdownOverridden, crouchingInputSlowdown;
   private boolean lastSprintingOverridden, lastSprinting;
   private boolean swimmingOverridden, swimming;
+  private boolean flyingOverridden, flying;
+  private boolean flyingDisablePendingOverridden, flyingDisablePending;
   private boolean collidedHorizontallyOverridden, collidedHorizontally;
   private boolean collidedVerticallyOverridden, collidedVertically;
   private boolean fallDistanceOverridden;
@@ -577,6 +579,32 @@ final class MutableSimulationEnvironmentView implements SimulationEnvironment {
     swimmingOverridden = true;
     this.swimming = swimming;
     defer(environment -> environment.setSwimming(swimming));
+  }
+
+  @Override
+  public boolean flying() {
+    return flyingOverridden ? flying : delegate.flying();
+  }
+
+  @Override
+  public void setFlying(boolean flying) {
+    flyingOverridden = true;
+    this.flying = flying;
+    defer(environment -> environment.setFlying(flying));
+  }
+
+  @Override
+  public boolean flyingDisablePending() {
+    return flyingDisablePendingOverridden
+      ? flyingDisablePending
+      : delegate.flyingDisablePending();
+  }
+
+  @Override
+  public void setFlyingDisablePending(boolean pending) {
+    flyingDisablePendingOverridden = true;
+    flyingDisablePending = pending;
+    defer(environment -> environment.setFlyingDisablePending(pending));
   }
 
   @Override
@@ -1199,6 +1227,10 @@ final class MutableSimulationEnvironmentView implements SimulationEnvironment {
     inactiveTickOverride(INVENTORY_OPEN);
     if (hasMovement || hasRotation) {
       inactiveTickOverride(MoveMetric.EXTERNAL_VELOCITY);
+    }
+    if (flyingDisablePending()) {
+      setFlying(false);
+      setFlyingDisablePending(false);
     }
     updatePose();
     defer(environment -> environment.tickComplete(hasMovement, hasRotation, true));

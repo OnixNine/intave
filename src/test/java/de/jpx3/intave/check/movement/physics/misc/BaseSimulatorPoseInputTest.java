@@ -172,6 +172,54 @@ final class BaseSimulatorPoseInputTest {
 		assertEquals(standing.motionZ * 0.3D, forcedCrouching.motionZ, EPSILON);
 	}
 
+	@Test
+	void activeFlightUsesStandingPoseWhenSneakingOnModernClients() {
+		MovementMetadata environment = flyingSneakEnvironment(
+			VER_1_14, new MockFullBlockStaticPlane()
+		);
+
+		environment.updatePose();
+
+		assertEquals(Pose.STANDING, environment.pose());
+		assertEquals(1.8F, environment.height());
+	}
+
+	@Test
+	void activeFlightSuppressesDelayedSneakPoseOnModernClients() {
+		MovementMetadata environment = flyingSneakEnvironment(
+			VER_1_21_2, new MockFullBlockStaticPlane()
+		);
+
+		environment.updatePose();
+
+		assertEquals(Pose.STANDING, environment.pose());
+		assertEquals(1.8F, environment.height());
+	}
+
+	@Test
+	void activeFlightStillUsesCrouchingFallbackWhenStandingIsObstructed() {
+		MovementMetadata environment = flyingSneakEnvironment(
+			VER_1_14, new UpperSlabBlockCache()
+		);
+
+		environment.updatePose();
+
+		assertEquals(Pose.CROUCHING, environment.pose());
+		assertEquals(1.5F, environment.height());
+	}
+
+	@Test
+	void prePoseClientsRetainSneakingDimensionsDuringFlight() {
+		MovementMetadata environment = flyingSneakEnvironment(
+			VER_1_13_2, new MockFullBlockStaticPlane()
+		);
+
+		environment.updatePose();
+
+		assertEquals(Pose.CROUCHING, environment.pose());
+		assertEquals(1.5F, environment.height());
+	}
+
 	private static void assertUsesCrawlingSlowdown(
 		int protocolVersion,
 		Pose pose,
@@ -196,6 +244,45 @@ final class BaseSimulatorPoseInputTest {
 			protocolVersion, pose, gliding, inWater,
 			false, false, new MockFullBlockStaticPlane()
 		);
+	}
+
+	private static MovementMetadata flyingSneakEnvironment(
+		int protocolVersion,
+		BlockCache blockCache
+	) {
+		World world = FakeWorldFactory.createWorld(
+			(methodName, _) -> switch (methodName) {
+				case "isChunkLoaded", "isChunkInUse" -> true;
+				case "isThundering", "hasStorm" -> false;
+				default -> null;
+			}
+		);
+		Location location = POSITION.toLocation(world);
+		Player player = FakePlayerFactory.createPlayer(
+			(methodName, _) -> switch (methodName) {
+				case "getWorld" -> world;
+				case "getLocation" -> location;
+				case "getUniqueId" -> new UUID(1L, protocolVersion);
+				default -> null;
+			}
+		);
+		User user = UserFactory.createTestUserFor(player, (usr, key) -> switch (key) {
+			case "blockCache" -> blockCache;
+			case "protocolVersion" -> protocolVersion;
+			default -> null;
+		});
+		UserRepository.manuallyRegisterUser(player, user);
+		user.meta().abilities().setAllowFlying(true);
+		user.meta().abilities().setFlying(true);
+
+		MovementMetadata environment = user.meta().movement();
+		environment.updateMovement(POSITION, ROTATION);
+		environment.setVerifiedLastPosition(POSITION, "flight pose test seed");
+		environment.setLastPosition(POSITION);
+		environment.setSneaking(true);
+		environment.lastSneaking = true;
+		environment.setPose(Pose.CROUCHING);
+		return environment;
 	}
 
 	private static Motion simulate(

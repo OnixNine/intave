@@ -29,7 +29,7 @@ import de.jpx3.intave.check.movement.physics.search.ThreeTickSimulationSearch;
 import de.jpx3.intave.check.movement.physics.simulator.Simulation;
 import de.jpx3.intave.check.movement.physics.simulator.Simulator;
 import de.jpx3.intave.check.movement.physics.simulator.Simulators;
-import de.jpx3.intave.check.movement.physics.update.MotionSetUpdate;
+import de.jpx3.intave.check.movement.physics.update.MotionUpdate;
 import de.jpx3.intave.check.movement.physics.update.PistonActionUpdate;
 import de.jpx3.intave.check.movement.physics.update.Reduce;
 import de.jpx3.intave.check.movement.physics.update.ShulkerBoxActionUpdate;
@@ -73,6 +73,7 @@ import java.util.stream.Stream;
 import static de.jpx3.intave.check.movement.physics.environment.MoveMetric.*;
 import static de.jpx3.intave.check.movement.physics.search.PostTickMotionType.SENT_OFFSET_MOTION;
 import static de.jpx3.intave.math.MathHelper.formatDouble;
+import static de.jpx3.intave.user.meta.ProtocolMetadata.VER_1_14;
 import static de.jpx3.intave.user.meta.ProtocolMetadata.VER_1_21_2;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -111,6 +112,27 @@ final class MovementRecordingPhysicsTests {
 	void elytraFireworksWaterRecording() throws IOException {
 		processRecordingResource(
 			"physics_test_runs/pose/elytra/elytra_fireworks_water.ptr"
+		);
+	}
+
+	@Test
+	void flying2Recording() throws IOException {
+		processRecordingResource(
+			"physics_test_runs/attributes/flying_2.ptr"
+		);
+	}
+
+	@Test
+	void flying3Recording() throws IOException {
+		processRecordingResource(
+			"physics_test_runs/attributes/flying_3.ptr"
+		);
+	}
+
+	@Test
+	void flying4Recording() throws IOException {
+		processRecordingResource(
+			"physics_test_runs/attributes/flying_4.ptr"
 		);
 	}
 
@@ -182,7 +204,7 @@ final class MovementRecordingPhysicsTests {
 			org.bukkit.Material.ELYTRA, 1, 17, Map.of()
 		);
 		MovementFrameState state = new MovementFrameState(
-			new MovementFrameState.AbilityState(true, true, false, 0.08F, "CREATIVE"),
+			new MovementFrameState.AbilityState(true, true, false, false, 0.08F, "CREATIVE"),
 			new MovementFrameState.EffectState(2, 40, 1, 20, 3, 10, Collections.emptyList()),
 			new MovementFrameState.InventoryState(
 				List.of(new MovementFrameState.ItemState(org.bukkit.Material.BOW, 1, 0, Map.of())),
@@ -399,9 +421,7 @@ final class MovementRecordingPhysicsTests {
 			boolean hasMovement = position != null;
 			boolean hasRotation = rotation != null;
 			metadata.gliding = frame.gliding();
-			if (frame.physicalPose() != null) {
-				metadata.setPose(frame.physicalPose());
-			}
+			applyRecordedPoseBeforeTick(user, metadata, frame.physicalPose());
 			metadata.updateMovement(
 				location.getX(), location.getY(), location.getZ(),
 				location.getYaw(), location.getPitch(),
@@ -1181,7 +1201,7 @@ final class MovementRecordingPhysicsTests {
 					}
 					// Live velocity packets are applied by UpdateBrancher after
 					// retained post-tick motion candidates have been selected.
-					MotionSetUpdate update = MotionSetUpdate.openEnded(motion, metadata);
+					MotionUpdate update = MotionUpdate.replacement(motion, metadata);
 					update.setRunNotAfter(metadata.currentTick() + duration - 1);
 					metadata.queueTickAmbiguousUpdate(update);
 					metadata.baseMotionXBeforeVelocity = metadata.baseMotionX;
@@ -1258,6 +1278,25 @@ final class MovementRecordingPhysicsTests {
 		movement.lastSneaking = movement.sneaking;
 		movement.sneaking = input.sneakKey();
 		movement.sprinting = sprinting;
+	}
+
+	private static void applyRecordedPoseBeforeTick(
+		User user,
+		MovementMetadata metadata,
+		Pose recordedPose
+	) {
+		if (recordedPose == null) {
+			return;
+		}
+		// A recorded pose is Intave's derived state, not a client-authored field. Old recordings can
+		// therefore contain the former active-flight crouch bug. Preserve the replay's end-of-tick
+		// pose here so the client's collision fallback remains ordered and stateful.
+		if (user.protocolVersion() >= VER_1_14
+			&& metadata.flying()
+			&& recordedPose == Pose.CROUCHING) {
+			return;
+		}
+		metadata.setPose(recordedPose);
 	}
 
 	private static void applyAttributesForTick(

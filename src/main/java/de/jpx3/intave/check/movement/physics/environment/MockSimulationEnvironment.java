@@ -59,6 +59,7 @@ public final class MockSimulationEnvironment implements SimulationEnvironment {
   private boolean inWater, inLava;
   private double lavaDepth;
   private boolean sprinting, sneaking, swimming;
+  private Boolean flying, flyingDisablePending;
   private boolean lastSprinting, lastSneaking;
   private boolean collidedHorizontally, collidedVertically;
   private boolean motionXReset, motionZReset;
@@ -237,6 +238,30 @@ public final class MockSimulationEnvironment implements SimulationEnvironment {
   @Override
   public void setSwimming(boolean swimming) {
     this.swimming = swimming;
+  }
+
+  @Override
+  public boolean flying() {
+    return flying != null
+      ? flying
+      : user != null && user.meta().abilities().flying();
+  }
+
+  @Override
+  public void setFlying(boolean flying) {
+    this.flying = flying;
+  }
+
+  @Override
+  public boolean flyingDisablePending() {
+    return flyingDisablePending != null
+      ? flyingDisablePending
+      : user != null && user.meta().abilities().disabledFlying;
+  }
+
+  @Override
+  public void setFlyingDisablePending(boolean pending) {
+    flyingDisablePending = pending;
   }
 
   @Override
@@ -981,7 +1006,10 @@ public final class MockSimulationEnvironment implements SimulationEnvironment {
 
   @Override
   public void tickComplete(boolean hasMovement, boolean hasRotation, boolean isRealClientTick) {
-
+    if (flyingDisablePending()) {
+      flying = false;
+      flyingDisablePending = false;
+    }
   }
 
   @Override

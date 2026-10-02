@@ -48,7 +48,7 @@ public final class SulfurGeyserPhysics {
 		return applyAfterPlayerTick(
 			user, environment,
 			BoundingBox.fromPosition(user, environment, position), motion,
-			abilities.flying(), environment.isInVehicle()
+			environment.flying(), environment.isInVehicle()
 		);
 	}
 

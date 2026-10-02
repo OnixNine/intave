@@ -31,6 +31,7 @@ import de.jpx3.intave.check.movement.physics.simulator.Simulation;
 import de.jpx3.intave.check.movement.physics.simulator.Simulator;
 import de.jpx3.intave.check.movement.physics.simulator.Simulators;
 import de.jpx3.intave.check.movement.physics.update.TickAmbiguousUpdate;
+import de.jpx3.intave.check.movement.physics.update.MotionUpdate;
 import de.jpx3.intave.check.world.interaction.BlockTrustChain;
 import de.jpx3.intave.executor.RateLimiter;
 import de.jpx3.intave.executor.Synchronizer;
@@ -81,11 +82,14 @@ public final class MovementMetadata implements SimulationEnvironment {
   public final Map<String, Double> serverMovementDebugValues = new HashMap<>();
   public final Map<String, Double> clientMovementDebugValues = new HashMap<>();
   public final List<TickAmbiguousUpdate> tickAmbiguousUpdates = new LinkedList<>();
+  public final List<MotionUpdate> pendingVelocityUpdates = new ArrayList<>();
   public float width = 0.6f, height = 1.8f;
   public float stepHeight = 0.6f;
   public double stepHeightThisMove = 0d;
   public double widthRounded, heightRounded;
   public volatile boolean gliding;
+  private @Nullable Boolean simulatedFlying;
+  private @Nullable Boolean simulatedFlyingDisablePending;
   public volatile @Nullable BlockPosition sleepingBedPosition;
   public int fireworkRocketsPower = 1;
   public boolean onGround, lastOnGround, step, onGroundWithRiptide;
@@ -969,7 +973,13 @@ public final class MovementMetadata implements SimulationEnvironment {
       inactiveTick(EXTERNAL_VELOCITY);
     }
 
+    if (flyingDisablePending()) {
+      setFlying(false);
+      setFlyingDisablePending(false);
+    }
     updatePose();
+    simulatedFlying = null;
+    simulatedFlyingDisablePending = null;
 
     // misc
     if (ticks(SNEAKING) > 1) {
@@ -988,6 +998,41 @@ public final class MovementMetadata implements SimulationEnvironment {
 
   public void queueTickAmbiguousUpdate(TickAmbiguousUpdate update) {
     tickAmbiguousUpdates.add(update);
+  }
+
+  public void trackVelocity(MotionUpdate update) {
+    teleportLock.lock();
+    try {
+      pendingVelocityUpdates.removeIf(previous -> previous.expired(this));
+      update.setSentBeforeTeleport(teleportSequence);
+      pendingVelocityUpdates.add(update);
+    } finally {
+      teleportLock.unlock();
+    }
+  }
+
+  public Motion preserveVelocity(Motion motion, long lastTeleport) {
+    SimulationEnvironment next = mutableView();
+    next.setBaseMotion(motion.copy());
+    for (MotionUpdate update : pendingVelocityUpdates) {
+      if (!update.expired(this) && update.sentBeforeTeleport() > lastTeleport) update.applyTo(next);
+      update.corrected();
+    }
+    pendingVelocityUpdates.clear();
+    return next.mutableBaseMotionCopy();
+  }
+
+  public void discardVelocityBefore(long teleport) {
+    teleportLock.lock();
+    try {
+      pendingVelocityUpdates.removeIf(update -> {
+        if (update.sentBeforeTeleport() > teleport) return false;
+        update.corrected();
+        return true;
+      });
+    } finally {
+      teleportLock.unlock();
+    }
   }
 
   @Override
@@ -1452,6 +1497,28 @@ public final class MovementMetadata implements SimulationEnvironment {
   @Override
   public void setSwimming(boolean swimming) {
     this.swimming = swimming;
+  }
+
+  @Override
+  public boolean flying() {
+    return simulatedFlying != null ? simulatedFlying : user.meta().abilities().flying();
+  }
+
+  @Override
+  public void setFlying(boolean flying) {
+    simulatedFlying = flying;
+  }
+
+  @Override
+  public boolean flyingDisablePending() {
+    return simulatedFlyingDisablePending != null
+      ? simulatedFlyingDisablePending
+      : user.meta().abilities().disabledFlying;
+  }
+
+  @Override
+  public void setFlyingDisablePending(boolean pending) {
+    simulatedFlyingDisablePending = pending;
   }
 
   @Override

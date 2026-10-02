@@ -81,6 +81,23 @@ final class WebPhysicsTest {
   }
 
   @Test
+  void flyingRetainsPreWebVerticalVelocityForPlayerTravel() {
+    for (int protocol : new int[]{VER_1_8, VER_26_1_1}) {
+      User user = user(protocol);
+      user.meta().abilities().setAllowFlying(true);
+      user.meta().abilities().setFlying(true);
+      SimulationEnvironment environment = environment(user);
+      contact(user, environment);
+      Motion input = Motion.of(0.4D, 0.8D, -0.6D);
+      SimulationResult result = Colliders.collision(
+        user, environment, input, true, 0.0D, 64.0D, 0.0D
+      );
+
+      assertEquals(Motion.of(0.0D, 0.8D, 0.0D), result.actualMotion());
+    }
+  }
+
+  @Test
   void contactCapturesEffectForTheNextMoveAndResetsFallDistance() {
     User user = user(VER_26_1_1);
     SimulationEnvironment environment = environment(user);

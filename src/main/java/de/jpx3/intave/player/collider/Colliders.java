@@ -64,6 +64,8 @@ public final class Colliders {
     Motion motion, boolean inWeb,
     double positionX, double positionY, double positionZ
   ) {
+    Motion travelMotion = motion.copy();
+
     // Apply motion multiplier
     Vector motionMultiplier = environment.motionMultiplier();
     if (motionMultiplier != null) {
@@ -72,7 +74,16 @@ public final class Colliders {
       motion.motionZ *= motionMultiplier.getZ();
     }
 
-    return user.collider().collide(user, environment, motion, positionX, positionY, positionZ, inWeb);
+    SimulationResult result = user.collider().collide(
+      user, environment, motion, positionX, positionY, positionZ, inWeb
+    );
+    boolean activeFlight = environment.flying() && !environment.isInVehicle();
+    if (activeFlight && (motionMultiplier != null || inWeb)) {
+      // Player.travel restores the Y value saved before Entity.move applies a
+      // web/stuck multiplier. Entity.move itself clears the other velocity axes.
+      return result.withActualMotion(new Motion(0.0D, travelMotion.motionY, 0.0D));
+    }
+    return result;
   }
 
   public static SimpleColliderResult simplifiedCollision(

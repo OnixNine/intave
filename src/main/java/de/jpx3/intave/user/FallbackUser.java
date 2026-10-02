@@ -37,6 +37,7 @@ import de.jpx3.intave.player.collider.complex.Collider;
 import de.jpx3.intave.player.collider.simple.SimpleCollider;
 import de.jpx3.intave.player.fake.FakePlayer;
 import de.jpx3.intave.share.Motion;
+import de.jpx3.intave.share.MovementCorrection;
 import de.jpx3.intave.share.PositionMoveRotation;
 import de.jpx3.intave.user.meta.CheckCustomMetadata;
 import de.jpx3.intave.user.meta.MetadataBundle;
@@ -407,6 +408,16 @@ final class FallbackUser implements User {
 
   @Override
   public void teleport(PositionMoveRotation change, Set<Relative> relativeSet) {
+
+  }
+
+  @Override
+  public void movementCorrection(PositionMoveRotation change) {
+
+  }
+
+  @Override
+  public void movementCorrection(MovementCorrection correction) {
 
   }
 

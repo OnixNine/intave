@@ -118,6 +118,27 @@ final class ImmutableSimulationEnvironmentCopyTest {
   }
 
   @Test
+  void flightTransitionStateIsFrozenAndCopiedToTarget() {
+    MockSimulationEnvironment source = new MockSimulationEnvironment();
+    source.setFlying(true);
+    source.setFlyingDisablePending(true);
+
+    SimulationEnvironment copy = source.immutableCopy();
+    source.setFlying(false);
+    source.setFlyingDisablePending(false);
+
+    assertTrue(copy.flying());
+    assertTrue(copy.flyingDisablePending());
+    assertThrows(UnsupportedOperationException.class, () -> copy.setFlying(false));
+
+    MockSimulationEnvironment target = new MockSimulationEnvironment();
+    copy.commitTo(target);
+
+    assertTrue(target.flying());
+    assertTrue(target.flyingDisablePending());
+  }
+
+  @Test
   void boatStateIsFrozenAndCopiedToTarget() {
     MockSimulationEnvironment source = new MockSimulationEnvironment();
     source.setPreviousBoatStatus(Status.IN_AIR);

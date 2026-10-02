@@ -454,21 +454,12 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 		@Immutable PostTickMotionType motionType
 	) {
 		SimulationEnvironment branchEnv = environment.mutableView();
-		SimulationResult result = environment.simulationResult();
-
-		Motion afterTickInputMotion = motionType == PostTickMotionType.SIMULATED_MOTION
-			? result.actualMotion()
-			: environment.sentOffsetMotion();
 
 		MovementConfiguration last = environment.lastMovementConfiguration();
 		TraceImmutableMovementConfiguration trace = last.withRecording();
 
-		Motion outputMotion = simulator.simulateAfterTick(
-			user, branchEnv, trace,
-			position, afterTickInputMotion.copy()
-		);
-		outputMotion = BlockTickEntities.tick(
-			user, branchEnv, position, outputMotion
+		Motion outputMotion = simulateAfterTick(
+			user, branchEnv, simulator, trace, position, motionType
 		);
 
 		// Entity.updateSwimming consumes this tick's sprint state during the next
@@ -480,13 +471,17 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 		// write to the active environment
 		// this is a safety measure in case we drop/forget to run LastPostTickCandidateBrancher next tick
 		branchEnv.setBaseMotion(outputMotion);
+		List<PostTickSimulation> candidates = new ArrayList<>();
+		candidates.add(new PostTickSimulation(outputMotion, last.isSprinting()));
+		addFlightTransitionCandidate(
+			candidates, user, environment, simulator, trace,
+			position, motionType, last.isSprinting()
+		);
 
 		// If the afterTick does not depend on the movementConfiguration, we can just return the outputMotion and not bother with the search
 		if (!trace.requiredAnyState()) {
 			branchEnv.commitTo(environment);
-			return Collections.singletonList(
-				new PostTickSimulation(outputMotion, last.isSprinting())
-			);
+			return candidates;
 		}
 
 		// Now we can search for all possible movement configurations that we possibly didn't check in the tick search.
@@ -496,26 +491,15 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 
 		if (branches.isEmpty()) {
 			branchEnv.commitTo(environment);
-			return Collections.singletonList(
-				new PostTickSimulation(outputMotion, last.isSprinting())
-			);
+			return candidates;
 		}
-
-		List<PostTickSimulation> candidates = new ArrayList<>();
-		candidates.add(new PostTickSimulation(outputMotion, last.isSprinting()));
 
 		for (MovementSearchBranch branch : branches) {
 			SimulationEnvironment disposable = environment.mutableView();
 			// see below
 //			disposable = branch.applyTo(disposable);
-			Motion motion = simulator.simulateAfterTick(
-				user, disposable,
-				branch.moveConfig(),
-				position,
-				afterTickInputMotion.copy()
-			);
-			motion = BlockTickEntities.tick(
-				user, disposable, position, motion
+			Motion motion = simulateAfterTick(
+				user, disposable, simulator, branch.moveConfig(), position, motionType
 			);
 			// see below
 //			disposable.commitTo(environment);
@@ -523,6 +507,10 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 			addCandidateIfUnique(
 				candidates,
 				new PostTickSimulation(motion, branch.moveConfig().isSprinting())
+			);
+			addFlightTransitionCandidate(
+				candidates, user, environment, simulator, branch.moveConfig(),
+				position, motionType, branch.moveConfig().isSprinting()
 			);
 		}
 
@@ -537,6 +525,51 @@ public final class ThreeTickSimulationSearch implements SimulationSearch {
 		branchEnv.commitTo(environment);
 
 		return candidates;
+	}
+
+	private static Motion simulateAfterTick(
+		User user,
+		SimulationEnvironment environment,
+		Simulator simulator,
+		MovementConfiguration configuration,
+		Position position,
+		PostTickMotionType motionType
+	) {
+		SimulationResult result = environment.simulationResult();
+		boolean activeFlight = environment.flying() && !environment.isInVehicle();
+		Motion inputMotion = activeFlight || motionType == PostTickMotionType.SIMULATED_MOTION
+			? result.actualMotion()
+			: environment.sentOffsetMotion();
+		Motion outputMotion = simulator.simulateAfterTick(
+			user, environment, configuration, position, inputMotion.copy()
+		);
+		return BlockTickEntities.tick(user, environment, position, outputMotion);
+	}
+
+	private static void addFlightTransitionCandidate(
+		List<PostTickSimulation> candidates,
+		User user,
+		SimulationEnvironment environment,
+		Simulator simulator,
+		MovementConfiguration configuration,
+		Position position,
+		PostTickMotionType motionType,
+		boolean priorSprinting
+	) {
+		if (!environment.flyingDisablePending() || environment.isInVehicle()) {
+			return;
+		}
+		// Disabling flight can leave this tick's displacement unchanged while
+		// Player.travel stores a different velocity for the following tick.
+		// Retain both outcomes until the next movement distinguishes them.
+		SimulationEnvironment alternative = environment.mutableView();
+		alternative.setFlying(!environment.flying());
+		Motion motion = simulateAfterTick(
+			user, alternative, simulator, configuration, position, motionType
+		);
+		addCandidateIfUnique(
+			candidates, new PostTickSimulation(motion, priorSprinting)
+		);
 	}
 
 	private static void addCandidateIfUnique(

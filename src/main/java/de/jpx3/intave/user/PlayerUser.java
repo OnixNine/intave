@@ -56,6 +56,7 @@ import de.jpx3.intave.player.collider.simple.SimpleCollider;
 import de.jpx3.intave.player.fake.FakePlayer;
 import de.jpx3.intave.reflect.access.ReflectiveHandleAccess;
 import de.jpx3.intave.share.Motion;
+import de.jpx3.intave.share.MovementCorrection;
 import de.jpx3.intave.share.PositionMoveRotation;
 import de.jpx3.intave.user.meta.CheckCustomMetadata;
 import de.jpx3.intave.user.meta.ConnectionMetadata;
@@ -588,6 +589,16 @@ final class PlayerUser implements User {
   @Override
   public void teleport(PositionMoveRotation change, Set<Relative> relativeSet) {
     Modules.find(MovementDispatcher.class).teleports().teleport(this, change, relativeSet);
+  }
+
+  @Override
+  public void movementCorrection(PositionMoveRotation change) {
+    Modules.find(MovementDispatcher.class).teleports().movementCorrection(this, change);
+  }
+
+  @Override
+  public void movementCorrection(MovementCorrection correction) {
+    Modules.find(MovementDispatcher.class).teleports().movementCorrection(this, correction);
   }
 
   @Override

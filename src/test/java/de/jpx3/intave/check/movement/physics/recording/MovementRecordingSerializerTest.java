@@ -163,7 +163,7 @@ final class MovementRecordingSerializerTest {
 			Material.ELYTRA, 1, 17, Map.of()
 		);
 		MovementFrameState state = new MovementFrameState(
-			new MovementFrameState.AbilityState(true, true, false, 0.08F, "CREATIVE"),
+			new MovementFrameState.AbilityState(true, true, false, false, 0.08F, "CREATIVE"),
 			new MovementFrameState.EffectState(
 				2, 80, 1, 40, 3, 20,
 				List.of(new MovementFrameState.EffectInstance("LEVITATION", 30, 2, false))

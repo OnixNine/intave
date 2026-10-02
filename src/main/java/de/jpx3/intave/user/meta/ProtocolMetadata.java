@@ -45,7 +45,9 @@ public final class ProtocolMetadata {
   public static int VER_1_19_2 = 760; // 1.19.1 - 1.19.2
   public static int VER_1_18_2 = 758; // 1.18.2
   public static int VER_1_17 = 755; // 1.17
+  public static int VER_1_16_4 = 754; // 1.16.4 - 1.16.5
   public static int VER_1_16 = 735; // 1.16
+  public static int VER_1_15_2 = 578; // 1.15.2
   public static int VER_1_15 = 573; // 1.15
   public static int VER_1_14_4 = 498; // 1.14.4
   public static int VER_1_14 = 477; // 1.14
