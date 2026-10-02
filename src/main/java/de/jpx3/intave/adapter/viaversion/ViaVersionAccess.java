@@ -11,6 +11,10 @@ public interface ViaVersionAccess {
 
   boolean ignoreBlocking(Player player);
 
+  default boolean serverSideBlockConnections() {
+    return true;
+  }
+
   default void decrementReceivedPackets(Player player, int amount) {
   }
 

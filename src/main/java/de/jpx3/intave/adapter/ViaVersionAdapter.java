@@ -98,4 +98,8 @@ public final class ViaVersionAdapter {
   public static String version() {
     return access != null ? access.version() : "unknown";
   }
+
+  public static boolean serverSideBlockConnections() {
+    return !foundLinkage() || access.serverSideBlockConnections();
+  }
 }

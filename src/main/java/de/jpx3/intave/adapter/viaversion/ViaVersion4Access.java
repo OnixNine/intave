@@ -67,6 +67,11 @@ public final class ViaVersion4Access implements ViaVersionAccess {
   }
 
   @Override
+  public boolean serverSideBlockConnections() {
+    return Via.getConfig().isServersideBlockConnections();
+  }
+
+  @Override
   public boolean available(String version) {
     return version.startsWith("4") && !version.startsWith("4.9") && !version.startsWith("4.1");
   }

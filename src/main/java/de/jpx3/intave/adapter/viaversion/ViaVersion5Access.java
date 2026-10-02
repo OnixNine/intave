@@ -78,6 +78,11 @@ public final class ViaVersion5Access implements ViaVersionAccess {
   }
 
   @Override
+  public boolean serverSideBlockConnections() {
+    return Via.getConfig().isServersideBlockConnections();
+  }
+
+  @Override
   public void decrementReceivedPackets(Player player, int amount) {
     UserConnection connection = Via.getAPI().getConnection(player.getUniqueId());
     if (connection == null) {

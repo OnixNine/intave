@@ -12,6 +12,9 @@
 package de.jpx3.intave.block.shape.resolve.patch;
 
 import de.jpx3.intave.adapter.MinecraftVersions;
+import de.jpx3.intave.adapter.ViaVersionAdapter;
+import de.jpx3.intave.block.access.VolatileBlockAccess;
+import de.jpx3.intave.share.BlockState;
 import de.jpx3.intave.share.BoundingBox;
 import de.jpx3.intave.user.User;
 import de.jpx3.intave.user.UserRepository;
@@ -23,6 +26,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class ThinBlockPatch extends BlockShapePatch {
+  private static final int NORTH = 1;
+  private static final int EAST = 1 << 1;
+  private static final int SOUTH = 1 << 2;
+  private static final int WEST = 1 << 3;
+  private static final int ALL_DIRECTIONS = NORTH | EAST | SOUTH | WEST;
+
   private static final BoundingBox[] STATES_8 = new BoundingBox[] {
     BoundingBox.originFrom(0.0F, 0.0F, 0.4375F, 1.0F, 1.0F, 0.5625F), // full ew connection
     BoundingBox.originFrom(0.4375F, 0.0F, 0.0F, 0.5625F, 1.0F, 1.0F), // full ns connection
@@ -46,95 +55,120 @@ final class ThinBlockPatch extends BlockShapePatch {
     if (MinecraftVersions.VER1_9_0.atOrAbove()) {
       if (!user.meta().protocol().combatUpdate()) {
         // update 1.9 to 1.8
-        int count = 0;
-        int[] indices = new int[bbs.size()];
-        for (BoundingBox bb : bbs) {
-          indices[count++] = indexOf9(bb);
-        }
-        boolean north = false;
-        boolean south = false;
-        boolean west = false;
-        boolean east = false;
-        for (int index : indices) {
-          north |= index == 1;
-          east |= index == 2;
-          south |= index == 3;
-          west |= index == 4;
-        }
-        List<BoundingBox> bbList = new ArrayList<>(count + 2);
-        boolean anyConnection = west || east || north || south;
-        if ((!west || !east) && anyConnection) {
-          if (west) {
-            bbList.add(STATES_8[5]);
-          } else if (east) {
-            bbList.add(STATES_8[3]);
-          }
-        } else {
-          bbList.add(STATES_8[0]);
-        }
-        if ((!north || !south) && anyConnection) {
-          if (north) {
-            bbList.add(STATES_8[2]);
-          } else if (south) {
-            bbList.add(STATES_8[4]);
-          }
-        } else {
-          bbList.add(STATES_8[1]);
-        }
-        return bbList;
+        return modernToLegacy(bbs);
       }
     } else {
       if (user.meta().protocol().combatUpdate()) {
         // update 1.8 to 1.9
-        int count = 0;
-        int[] indices = new int[bbs.size()];
-        for (BoundingBox bb : bbs) {
-          indices[count++] = indexOf8(bb);
-        }
-        boolean north = false;
-        boolean east = false;
-        boolean south = false;
-        boolean west = false;
-        for (int index : indices) {
-          north |= index == 2 || index == 1;
-          east |= index == 3 || index == 0;
-          south |= index == 4 || index == 1;
-          west |= index == 5 || index == 0;
-        }
-        // via version emulates 1.8 behaviour of panes, we can account for it
-        if (!(north || east || south || west) && user.meta().protocol().aquaticUpdate()) {
-          north = south = east = west = true;
-        }
-        List<BoundingBox> bbList = new ArrayList<>(count);
-        bbList.add(STATES_9[0]);
-        if (north) bbList.add(STATES_9[1]);
-        if (east) bbList.add(STATES_9[2]);
-        if (south) bbList.add(STATES_9[3]);
-        if (west) bbList.add(STATES_9[4]);
-        return bbList;
+        int connections = connectionMask(bbs);
+        boolean ambiguousCross = connections == ALL_DIRECTIONS;
+        boolean isolated = ambiguousCross && !hasLegacyConnection(user, world, posX, posY, posZ);
+        boolean viaVersionCross = user.meta().protocol().aquaticUpdate()
+          && ViaVersionAdapter.serverSideBlockConnections();
+        return legacyToModern(bbs, isolated, viaVersionCross);
       }
     }
     return bbs;
   }
 
-  private int indexOf8(BoundingBox axisAlignedBB) {
-    for (int i = 0, length = STATES_8.length; i < length; i++) {
-      BoundingBox boundingBox = STATES_8[i];
-      if (boundingBox.equals(axisAlignedBB)) {
-        return i;
-      }
-    }
-    return -1;
+  static List<BoundingBox> modernToLegacy(List<BoundingBox> boxes) {
+    return legacyBoxes(connectionMask(boxes));
   }
 
-  private int indexOf9(BoundingBox axisAlignedBB) {
-    for (int i = 0, length = STATES_9.length; i < length; i++) {
-      BoundingBox boundingBox = STATES_9[i];
-      if (boundingBox.equals(axisAlignedBB)) {
-        return i;
+  static List<BoundingBox> legacyToModern(
+    List<BoundingBox> boxes,
+    boolean isolatedLegacyPane,
+    boolean viaVersionCross
+  ) {
+    int connections = connectionMask(boxes);
+    if (connections == ALL_DIRECTIONS && isolatedLegacyPane && !viaVersionCross) {
+      connections = 0;
+    }
+    return modernBoxes(connections);
+  }
+
+  static int connectionMask(List<BoundingBox> boxes) {
+    // Sample the middle of each arm. This remains stable when VoxelShape decomposes the source
+    // boxes into a different set of elementary boxes.
+    int connections = 0;
+    if (contains(boxes, 0.5, 0.5, 0.25)) connections |= NORTH;
+    if (contains(boxes, 0.75, 0.5, 0.5)) connections |= EAST;
+    if (contains(boxes, 0.5, 0.5, 0.75)) connections |= SOUTH;
+    if (contains(boxes, 0.25, 0.5, 0.5)) connections |= WEST;
+    return connections;
+  }
+
+  private static boolean contains(List<BoundingBox> boxes, double x, double y, double z) {
+    for (BoundingBox box : boxes) {
+      if (box.contains(x, y, z)) {
+        return true;
       }
     }
-    return -1;
+    return false;
+  }
+
+  private static List<BoundingBox> legacyBoxes(int connections) {
+    List<BoundingBox> boxes = new ArrayList<>(2);
+    boolean anyConnection = connections != 0;
+    boolean east = (connections & EAST) != 0;
+    boolean west = (connections & WEST) != 0;
+    if (east && west || !anyConnection) {
+      boxes.add(STATES_8[0]);
+    } else if (east) {
+      boxes.add(STATES_8[3]);
+    } else if (west) {
+      boxes.add(STATES_8[5]);
+    }
+
+    boolean north = (connections & NORTH) != 0;
+    boolean south = (connections & SOUTH) != 0;
+    if (north && south || !anyConnection) {
+      boxes.add(STATES_8[1]);
+    } else if (north) {
+      boxes.add(STATES_8[2]);
+    } else if (south) {
+      boxes.add(STATES_8[4]);
+    }
+    return boxes;
+  }
+
+  private static List<BoundingBox> modernBoxes(int connections) {
+    List<BoundingBox> boxes = new ArrayList<>(5);
+    boxes.add(STATES_9[0]);
+    if ((connections & NORTH) != 0) boxes.add(STATES_9[1]);
+    if ((connections & EAST) != 0) boxes.add(STATES_9[2]);
+    if ((connections & SOUTH) != 0) boxes.add(STATES_9[3]);
+    if ((connections & WEST) != 0) boxes.add(STATES_9[4]);
+    return boxes;
+  }
+
+  private static boolean hasLegacyConnection(User user, World world, int posX, int posY, int posZ) {
+    return isLegacyConnectionMaterial(neighborType(user, world, posX, posY, posZ - 1))
+      || isLegacyConnectionMaterial(neighborType(user, world, posX + 1, posY, posZ))
+      || isLegacyConnectionMaterial(neighborType(user, world, posX, posY, posZ + 1))
+      || isLegacyConnectionMaterial(neighborType(user, world, posX - 1, posY, posZ));
+  }
+
+  private static Material neighborType(User user, World world, int posX, int posY, int posZ) {
+    BlockState cachedState = user.blockCache().peekStateAt(posX, posY, posZ);
+    return cachedState == null
+      ? VolatileBlockAccess.blockAccess(world, posX, posY, posZ).getType()
+      : cachedState.type();
+  }
+
+  static boolean isLegacyConnectionMaterial(Material material) {
+    if (material.isOccluding()) {
+      return true;
+    }
+    String name = material.name();
+    return name.equals("GLASS")
+      || name.equals("LEGACY_GLASS")
+      || name.equals("STAINED_GLASS")
+      || name.equals("LEGACY_STAINED_GLASS")
+      || name.contains("GLASS_PANE")
+      || name.contains("THIN_GLASS")
+      || name.contains("IRON_BAR")
+      || name.contains("IRON_FENCE");
   }
 
   @Override
