@@ -149,6 +149,58 @@ public final class BlockShapeDrillTests extends IntegrationTests {
     assertFalse(blockShape.isCubic());
   }
 
+  @Test(testCode = "IRON-BARS-26.3", severity = Severity.ERROR)
+  public void testViaVersionIronBarsUseFullCrossBesideLeaves() {
+    if (MinecraftVersions.VER1_8_0.below() || MinecraftVersions.VER1_9_0.atOrAbove()) {
+      return;
+    }
+
+    Material ironBars = Material.getMaterial("IRON_FENCE");
+    Material leaves = Material.getMaterial("LEAVES");
+    assertNotNull(ironBars);
+    assertNotNull(leaves);
+
+    World world = block.getWorld();
+    int x = 8;
+    int y = 200;
+    int z = 8;
+    List<org.bukkit.block.BlockState> original = new ArrayList<>();
+    for (int[] offset : new int[][] {{0, 0}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}}) {
+      original.add(world.getBlockAt(x + offset[0], y, z + offset[1]).getState());
+    }
+
+    try {
+      world.getBlockAt(x, y, z).setType(ironBars, false);
+      world.getBlockAt(x, y, z - 1).setType(Material.AIR, false);
+      world.getBlockAt(x + 1, y, z).setType(leaves, false);
+      world.getBlockAt(x, y, z + 1).setType(Material.AIR, false);
+      world.getBlockAt(x - 1, y, z).setType(Material.AIR, false);
+
+      ShapeResolverPipeline pipeline = ShapeResolver.createPipelineFor(drill);
+      BlockCache cache = BlockCaches.cacheForPlayerWithResolver(player, pipeline);
+      User modernUser = UserFactory.createTestUserFor(player, (usr, key) -> {
+        if (key.equals("protocolVersion")) {
+          return de.jpx3.intave.user.meta.ProtocolMetadata.VER_26_3;
+        }
+        if (key.equals("blockCache")) {
+          return cache;
+        }
+        return null;
+      });
+      UserRepository.manuallyRegisterUser(player, modernUser);
+
+      BlockShape shape = cache.collisionShapeAt(x, y, z);
+      assertTrue(shape.strictlyInside(x + 0.5, y + 0.5, z + 0.25));
+      assertTrue(shape.strictlyInside(x + 0.75, y + 0.5, z + 0.5));
+      assertTrue(shape.strictlyInside(x + 0.5, y + 0.5, z + 0.75));
+      assertTrue(shape.strictlyInside(x + 0.25, y + 0.5, z + 0.5));
+    } finally {
+      for (org.bukkit.block.BlockState state : original) {
+        state.update(true, false);
+      }
+    }
+  }
+
   @Test(testCode = "GRASS", severity = Severity.ERROR)
   public void testGrassCollisionShapes() {
     if (!MinecraftVersions.VER26_2.atOrAbove()) {

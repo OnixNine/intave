@@ -13,6 +13,7 @@ package de.jpx3.intave.block.shape.resolve.patch;
 
 import de.jpx3.intave.block.shape.BlockShapes;
 import de.jpx3.intave.share.BoundingBox;
+import org.bukkit.Material;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -74,6 +75,30 @@ final class ThinBlockPatchTest {
     );
 
     assertEquals(ALL_DIRECTIONS, ThinBlockPatch.connectionMask(optimized(translated)));
+  }
+
+  @Test
+  void usesViaVersionIsolatedFallbackWhenLegacyLeavesAreTheOnlyNeighbor() {
+    int connections = ThinBlockPatch.viaVersionConnectionMask(
+      Material.AIR,
+      Material.OAK_LEAVES,
+      Material.AIR,
+      Material.AIR
+    );
+
+    assertEquals(ALL_DIRECTIONS, connections);
+  }
+
+  @Test
+  void preservesRealViaVersionConnections() {
+    int connections = ThinBlockPatch.viaVersionConnectionMask(
+      Material.IRON_BARS,
+      Material.IRON_BARS,
+      Material.OAK_LEAVES,
+      Material.OAK_LEAVES
+    );
+
+    assertEquals(NORTH | EAST, connections);
   }
 
   private static List<BoundingBox> optimized(List<BoundingBox> boxes) {

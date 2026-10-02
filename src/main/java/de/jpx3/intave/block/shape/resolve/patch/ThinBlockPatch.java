@@ -60,12 +60,22 @@ final class ThinBlockPatch extends BlockShapePatch {
     } else {
       if (user.meta().protocol().combatUpdate()) {
         // update 1.8 to 1.9
+        boolean viaVersionConnections = user.meta().protocol().aquaticUpdate()
+          && ViaVersionAdapter.serverSideBlockConnections();
+        if (viaVersionConnections) {
+          int connections = viaVersionConnectionMask(
+            neighborType(user, world, posX, posY, posZ - 1),
+            neighborType(user, world, posX + 1, posY, posZ),
+            neighborType(user, world, posX, posY, posZ + 1),
+            neighborType(user, world, posX - 1, posY, posZ)
+          );
+          return modernBoxes(connections);
+        }
+
         int connections = connectionMask(bbs);
         boolean ambiguousCross = connections == ALL_DIRECTIONS;
         boolean isolated = ambiguousCross && !hasLegacyConnection(user, world, posX, posY, posZ);
-        boolean viaVersionCross = user.meta().protocol().aquaticUpdate()
-          && ViaVersionAdapter.serverSideBlockConnections();
-        return legacyToModern(bbs, isolated, viaVersionCross);
+        return legacyToModern(bbs, isolated, false);
       }
     }
     return bbs;
@@ -96,6 +106,23 @@ final class ThinBlockPatch extends BlockShapePatch {
     if (contains(boxes, 0.5, 0.5, 0.75)) connections |= SOUTH;
     if (contains(boxes, 0.25, 0.5, 0.5)) connections |= WEST;
     return connections;
+  }
+
+  static int viaVersionConnectionMask(
+    Material north,
+    Material east,
+    Material south,
+    Material west
+  ) {
+    int connections = 0;
+    if (isViaVersionConnectionMaterial(north)) connections |= NORTH;
+    if (isViaVersionConnectionMaterial(east)) connections |= EAST;
+    if (isViaVersionConnectionMaterial(south)) connections |= SOUTH;
+    if (isViaVersionConnectionMaterial(west)) connections |= WEST;
+
+    // ViaVersion's GlassConnectionHandler sends mask 15 for an otherwise isolated pane/bar
+    // on 1.8 and older servers.
+    return connections == 0 ? ALL_DIRECTIONS : connections;
   }
 
   private static boolean contains(List<BoundingBox> boxes, double x, double y, double z) {
@@ -157,18 +184,36 @@ final class ThinBlockPatch extends BlockShapePatch {
   }
 
   static boolean isLegacyConnectionMaterial(Material material) {
-    if (material.isOccluding()) {
-      return true;
-    }
     String name = material.name();
-    return name.equals("GLASS")
+    if (name.equals("AIR") || name.endsWith("_AIR")) {
+      return false;
+    }
+    if (name.equals("GLASS")
       || name.equals("LEGACY_GLASS")
       || name.equals("STAINED_GLASS")
       || name.equals("LEGACY_STAINED_GLASS")
       || name.contains("GLASS_PANE")
       || name.contains("THIN_GLASS")
       || name.contains("IRON_BAR")
-      || name.contains("IRON_FENCE");
+      || name.contains("IRON_FENCE")) {
+      return true;
+    }
+    return material.isOccluding();
+  }
+
+  static boolean isViaVersionConnectionMaterial(Material material) {
+    String name = material.name();
+    if (name.contains("LEAVES")
+      || name.equals("BARRIER")
+      || name.equals("PUMPKIN")
+      || name.equals("CARVED_PUMPKIN")
+      || name.equals("JACK_O_LANTERN")
+      || name.equals("MELON")
+      || name.equals("MELON_BLOCK")
+      || name.endsWith("SHULKER_BOX")) {
+      return false;
+    }
+    return isLegacyConnectionMaterial(material) || name.endsWith("_WALL");
   }
 
   @Override
